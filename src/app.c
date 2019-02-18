@@ -61,7 +61,12 @@ typedef struct undo_s {
 
 typedef struct {
   SDL_Rect rect;
+  SDL_Rect dest;
+  SDL_Point start;
+  SDL_Point end;
   int* data;
+  int copying;
+  int pasting;
 } copy_t;
 
 undo_t* undo_head = NULL;
@@ -203,16 +208,52 @@ void pick_color(int x, int y) {
   color = ((int*)data)[ty * width + tx];
 }
 
+void start_copy(int x, int y) {
+  copy.copying = 1;
+  copy.start.x = x;
+  copy.start.y = y;
+  copy.end.x = x;
+  copy.end.y = y;
+}
+
+void coords_to_rect(SDL_Point start, SDL_Point end, SDL_Rect* rect) {
+  int dx = end.x - start.x;
+  int dy = end.y - start.y;
+  if (dx < 0) {
+    rect->x = end.x;
+    rect->w = dx * -1;
+  } else {
+    rect->x = start.x;
+    rect->w = dx;
+  }
+  if (dy < 0) {
+    rect->y = end.y;
+    rect->h = dy * -1;
+  } else {
+    rect->y = start.y;
+    rect->h = dy;
+  }
+}
+
+void end_copy() {
+  SDL_Point ts, te;
+  translate_coord(copy.start.x, copy.start.y, &ts.x, &ts.y);
+  translate_coord(copy.end.x, copy.end.y, &te.x, &te.y);
+  coords_to_rect(ts, te, &copy.rect);
+  copy.copying = 0;
+  if (copy.rect.h > 1 || copy.rect.w > 1) {
+    copy.pasting = 1;
+  }
+}
+
 void mouse_move(int state, int x, int y) {
-  int dx = prevx - x;
-  int dy = prevy - y;
   if (state & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
-    if (prevx != -1 || prevy != -1) {
-      dest.x -= dx;
-      dest.y -= dy;
-    }
+    copy.end.x = x, copy.end.y = y;
   } else if (state & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-    paint(x, y);
+    if (copy.pasting) {
+    } else {
+      paint(x, y);
+    }
   }
   prevx = x;
   prevy = y;
@@ -272,30 +313,53 @@ void start_undo_record() {
   varry_init(pixel_t, &undo->pixels, 8);
 }
 
-void start_copy(int x, int y) {
-  int tx, ty;
-  translate_coord(x, y, &tx, &ty);
-  copy.rect.x = tx;
-  copy.rect.y = ty;
+void snap_rect_to_pixel(SDL_Rect* rect) {
+  int offsetx = dest.x % zoom;
+  int offsety = dest.y % zoom;
+  rect->x -= (rect->x - offsetx) % zoom;
+  rect->y -= (rect->y - offsety) % zoom;
+  rect->w -= rect->w % zoom;
+  rect->h -= rect->h % zoom;
 }
 
-void end_copy(int x, int y) {
-  int tx, ty;
-  translate_coord(x, y, &tx, &ty);
-  copy.rect.x = tx;
-  copy.rect.y = ty;
+void snap_rect_to_block(SDL_Rect* rect, int zoom) {
+  int offsetx = dest.x % (zoom * BLOCK_SIZE);
+  int offsety = dest.y % (zoom * BLOCK_SIZE);
+  rect->x -= (rect->x - offsetx) % (zoom * BLOCK_SIZE);
+  rect->y -= (rect->y - offsety) % (zoom * BLOCK_SIZE);
+  rect->w -= rect->w % zoom * BLOCK_SIZE;
+  rect->h -= rect->h % zoom * BLOCK_SIZE;
+}
+
+void copy_pixels(SDL_Rect* src, int x, int y, int* data) {
+  for (int sy = src->y, dy = y; sy < src->y + src->h; sy++, dy++) {
+    for (int sx = src->x, dx = x; sx < src->x + src->w; sx++, dx++) {
+      printf("(%d, %d) -> (%d, %d)\n", sx, sy, dx, dy);
+      printf("(%d) -> (%d)\n", sy * surf->w + sx, dy * surf->w + dx);
+      data[dy * surf->w + dx] = data[sy * surf->w + sx];
+    }
+  }
+}
+
+void paste(int x, int y) {
+  translate_coord(x, y, &x, &y);
+  x -= x % BLOCK_SIZE;
+  y -= y % BLOCK_SIZE;
+  copy_pixels(&copy.rect, x, y, (int*)data);
+  build_image();
 }
 
 void handle_event(SDL_Event* e) {
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
-      if (e->key.keysym.sym == SDLK_ESCAPE) quit = 1;
+      if (e->key.keysym.sym == SDLK_ESCAPE) copy.pasting = 0;
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
       if (e->key.keysym.sym == SDLK_MINUS) zoom_out();
       if (e->key.keysym.sym == SDLK_s) save();
       if (e->key.keysym.sym == SDLK_u) undo();
       if (e->key.keysym.sym == SDLK_g) grid.on = !grid.on;
+      if (e->key.keysym.sym == SDLK_q) quit = 1;
       break;
     case SDL_QUIT:
       quit = 1;
@@ -317,10 +381,19 @@ void handle_event(SDL_Event* e) {
           break;
         }
         start_undo_record();
-        paint(e->button.x, e->button.y);
+        if (copy.pasting) {
+          paste(e->button.x, e->button.y);
+        } else {
+          paint(e->button.x, e->button.y);
+        }
       } else if (e->button.button == SDL_BUTTON_RIGHT) {
-
+        start_copy(e->button.x, e->button.y);
         pick_color(e->button.x, e->button.y);
+      }
+      break;
+    case SDL_MOUSEBUTTONUP:
+      if (copy.copying) {
+        end_copy();
       }
       break;
   }
@@ -392,6 +465,8 @@ void run_app(char* path) {
 
   build_grid();
   grid.on = 1;
+  copy.copying = 0;
+  copy.pasting = 0;
   build_palette();
 
   int x, y;
@@ -421,9 +496,29 @@ void run_app(char* path) {
     .w = 64
   };
 
+  SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
+
   while (!quit) {
     SDL_RenderClear(ren);
     SDL_RenderCopy(ren, tex, NULL, &dest);
+    if (copy.copying) {
+      SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
+      coords_to_rect(copy.start, copy.end, &copy.dest);
+      snap_rect_to_pixel(&copy.dest);
+      SDL_RenderFillRect(ren, &copy.dest);
+    }
+    if (copy.pasting) {
+      SDL_GetMouseState(&x, &y);
+      SDL_Rect dst = {
+        .x = x,
+        .y = y,
+        .w = copy.rect.w * zoom,
+        .h = copy.rect.h * zoom
+      };
+      snap_rect_to_block(&dst, zoom);
+      SDL_RenderCopy(ren, tex, &copy.rect, &dst);
+    }
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
