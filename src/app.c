@@ -13,6 +13,7 @@
 #define AMASK 0xff000000
 
 #define BLOCK_SIZE 8
+#define MAJOR_BLOCK_SIZE 16
 
 int prevx = -1, prevy = -1;
 SDL_Rect dest;
@@ -154,21 +155,23 @@ int* create_grid_tile(int size) {
   int* data = calloc(size * size, sizeof(int));
   for (int i = 0, j = 0; i < size; i++, j += size) {
     data[i] = 0xffffffff;
+    if (i % 2 == 0) data[i + size/2 * size] = 0xffdddddd;
     data[j] = 0xffffffff;
+    if (i % 2 == 0) data[j + size/2] = 0xffdddddd;
   }
   return data;
 }
 
 void build_grid() {
-  grid.data = create_grid_tile(zoom * BLOCK_SIZE);
+  grid.data = create_grid_tile(zoom * MAJOR_BLOCK_SIZE);
   grid.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)grid.data, BLOCK_SIZE * zoom, BLOCK_SIZE * zoom,
-    32,          4*BLOCK_SIZE * zoom, RMASK,
+    (void*)grid.data, MAJOR_BLOCK_SIZE * zoom, MAJOR_BLOCK_SIZE * zoom,
+    32,          4*MAJOR_BLOCK_SIZE * zoom, RMASK,
     GMASK,       BMASK, AMASK
   );
 	grid.tex = SDL_CreateTextureFromSurface(ren, grid.surf);
-  grid.dest.h = BLOCK_SIZE * zoom;
-  grid.dest.w = BLOCK_SIZE * zoom;
+  grid.dest.h = MAJOR_BLOCK_SIZE * zoom;
+  grid.dest.w = MAJOR_BLOCK_SIZE * zoom;
 }
 
 void build_image() {
@@ -405,13 +408,13 @@ void draw_grid() {
   if (!grid.on) return;
   grid.dest.x = dest.x;
   grid.dest.y = dest.y;
-  for (int i = 0; i < surf->h / BLOCK_SIZE; i++) {
-    for (int j = 0; j < surf->w / BLOCK_SIZE; j++) {
+  for (int i = 0; i < surf->h / MAJOR_BLOCK_SIZE; i++) {
+    for (int j = 0; j < surf->w / MAJOR_BLOCK_SIZE; j++) {
       SDL_RenderCopy(ren, grid.tex, NULL, &grid.dest);
-      grid.dest.x += zoom * BLOCK_SIZE;
+      grid.dest.x += zoom * MAJOR_BLOCK_SIZE;
     }
     grid.dest.x = dest.x;
-    grid.dest.y += zoom * BLOCK_SIZE;
+    grid.dest.y += zoom * MAJOR_BLOCK_SIZE;
   }
 }
 
