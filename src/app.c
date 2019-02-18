@@ -334,9 +334,11 @@ void snap_rect_to_block(SDL_Rect* rect, int zoom) {
 void copy_pixels(SDL_Rect* src, int x, int y, int* data) {
   for (int sy = src->y, dy = y; sy < src->y + src->h; sy++, dy++) {
     for (int sx = src->x, dx = x; sx < src->x + src->w; sx++, dx++) {
-      printf("(%d, %d) -> (%d, %d)\n", sx, sy, dx, dy);
-      printf("(%d) -> (%d)\n", sy * surf->w + sx, dy * surf->w + dx);
-      data[dy * surf->w + dx] = data[sy * surf->w + sx];
+      int si = sy * surf->w + sx;
+      int di = dy * surf->w + dx;
+      pixel_t pixel = { .index = di, .color = data[di] };
+      data[di] = data[si];
+      varry_push(pixel_t, &undo_head->pixels, pixel);
     }
   }
 }
