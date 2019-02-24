@@ -252,11 +252,25 @@ void coords_to_rect(SDL_Point start, SDL_Point end, SDL_Rect* rect) {
   }
 }
 
+void print_rect(char* name, SDL_Rect* rect) {
+  printf("%s: [(%d, %d), (%d, %d)]\n", name, rect->x, rect->y, rect->w, rect->h);
+}
+
+void snap_rect_to_pixel(SDL_Rect* rect) {
+  int offsetx = dest.x % zoom;
+  int offsety = dest.y % zoom;
+  rect->x -= (rect->x - offsetx) % zoom;
+  rect->y -= (rect->y - offsety) % zoom;
+  rect->w -= rect->w % zoom;
+  rect->h -= rect->h % zoom;
+}
+
 void end_copy() {
-  SDL_Point ts, te;
-  translate_coord(copy.start.x, copy.start.y, &ts.x, &ts.y);
-  translate_coord(copy.end.x, copy.end.y, &te.x, &te.y);
-  coords_to_rect(ts, te, &copy.rect);
+  coords_to_rect(copy.start, copy.end, &copy.rect);
+  snap_rect_to_pixel(&copy.rect);
+  translate_coord(copy.rect.x, copy.rect.y, &copy.rect.x, &copy.rect.y);
+  copy.rect.w /= zoom;
+  copy.rect.h /= zoom;
   copy.copying = 0;
   if (copy.rect.h > 1 || copy.rect.w > 1) {
     copy.pasting = 1;
@@ -328,15 +342,6 @@ void start_undo_record() {
   undo->next = undo_head;
   undo_head = undo;
   varry_init(pixel_t, &undo->pixels, 8);
-}
-
-void snap_rect_to_pixel(SDL_Rect* rect) {
-  int offsetx = dest.x % zoom;
-  int offsety = dest.y % zoom;
-  rect->x -= (rect->x - offsetx) % zoom;
-  rect->y -= (rect->y - offsety) % zoom;
-  rect->w -= rect->w % zoom;
-  rect->h -= rect->h % zoom;
 }
 
 void snap_rect_to_block(SDL_Rect* rect, int zoom) {
