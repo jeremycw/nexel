@@ -19,7 +19,7 @@
 #define BLOCK_SIZE 8
 #define MAJOR_BLOCK_SIZE 16
 
-int prevx = -1, prevy = -1;
+char* filename;
 SDL_Rect dest;
 int quit = 0;
 
@@ -73,6 +73,8 @@ typedef struct {
   int* data;
   int copying;
   int pasting;
+  SDL_Texture* tex;
+  SDL_Surface* surf;
 } copy_t;
 
 typedef struct {
@@ -271,6 +273,26 @@ void end_copy() {
   translate_coord(copy.rect.x, copy.rect.y, &copy.rect.x, &copy.rect.y);
   copy.rect.w /= zoom;
   copy.rect.h /= zoom;
+  if (copy.data) {
+    free(copy.data);
+    copy.data = NULL;
+    SDL_FreeSurface(copy.surf);
+    SDL_DestroyTexture(copy.tex);
+  }
+  copy.data = malloc(4 * copy.rect.w * copy.rect.h);
+  for (int sy = copy.rect.y, dy = 0; dy < copy.rect.h; sy++, dy++) {
+    for (int sx = copy.rect.x, dx = 0; dx < copy.rect.w; sx++, dx++) {
+      int si = sy * surf->w + sx;
+      int di = dy * copy.rect.w + dx;
+      copy.data[di] = ((int*)data)[si];
+    }
+  }
+  copy.surf = SDL_CreateRGBSurfaceFrom(
+    (void*)copy.data, copy.rect.w, copy.rect.h,
+    32,          copy.rect.w*4, RMASK,
+    GMASK,       BMASK, AMASK
+  );
+  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
   copy.copying = 0;
   if (copy.rect.h > 1 || copy.rect.w > 1) {
     copy.pasting = 1;
@@ -286,8 +308,6 @@ void mouse_move(int state, int x, int y) {
       paint(x, y);
     }
   }
-  prevx = x;
-  prevy = y;
 }
 
 void zoom_in() {
@@ -316,7 +336,7 @@ void zoom_out() {
 }
 
 void save() {
-  stbi_write_png("out.png", surf->w, surf->h, 4, data, surf->w*4);
+  stbi_write_png(filename, surf->w, surf->h, 4, data, surf->w*4);
 }
 
 void undo() {
@@ -353,31 +373,37 @@ void snap_rect_to_block(SDL_Rect* rect, int zoom) {
   rect->h -= rect->h % zoom * BLOCK_SIZE;
 }
 
-void copy_pixels(SDL_Rect* src, int x, int y, int* data) {
-  for (int sy = src->y, dy = y; sy < src->y + src->h; sy++, dy++) {
-    for (int sx = src->x, dx = x; sx < src->x + src->w; sx++, dx++) {
-      int si = sy * surf->w + sx;
-      int di = dy * surf->w + dx;
-      pixel_t pixel = { .index = di, .color = data[di] };
-      data[di] = data[si];
-      varray_push(pixel_t, &undo_head->pixels, pixel);
-    }
-  }
-}
-
 void paste(int x, int y) {
   translate_coord(x, y, &x, &y);
   x -= x % BLOCK_SIZE;
   y -= y % BLOCK_SIZE;
-  copy_pixels(&copy.rect, x, y, (int*)data);
+  for (int sy = 0, dy = y; sy < copy.rect.h; sy++, dy++) {
+    for (int sx = 0, dx = x; sx < copy.rect.w; sx++, dx++) {
+      int si = sy * copy.rect.w + sx;
+      int di = dy * surf->w + dx;
+      pixel_t pixel = { .index = di, .color = ((int*)data)[di] };
+      ((int*)data)[di] = copy.data[si];
+      varray_push(pixel_t, &undo_head->pixels, pixel);
+    }
+  }
   build_image();
+}
+
+void end_paste() {
+  if (copy.data) {
+    free(copy.data);
+    copy.data = NULL;
+    SDL_FreeSurface(copy.surf);
+    SDL_DestroyTexture(copy.tex);
+  }
+  copy.pasting = 0;
 }
 
 void handle_event(SDL_Event* e) {
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
-      if (e->key.keysym.sym == SDLK_ESCAPE) copy.pasting = 0;
+      if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
       if (e->key.keysym.sym == SDLK_MINUS) zoom_out();
       if (e->key.keysym.sym == SDLK_s) save();
@@ -500,6 +526,7 @@ void draw_status_line() {
 
 void run_app(char* path) {
   status = path;
+  filename = path;
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
     exit(1);
@@ -604,7 +631,7 @@ void run_app(char* path) {
         .h = copy.rect.h * zoom
       };
       snap_rect_to_block(&dst, zoom);
-      SDL_RenderCopy(ren, tex, &copy.rect, &dst);
+      SDL_RenderCopy(ren, copy.tex, NULL, &dst);
     }
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
