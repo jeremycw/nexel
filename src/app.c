@@ -183,7 +183,7 @@ void build_grid() {
     32,          4*MAJOR_BLOCK_SIZE * zoom, RMASK,
     GMASK,       BMASK, AMASK
   );
-	grid.tex = SDL_CreateTextureFromSurface(ren, grid.surf);
+  grid.tex = SDL_CreateTextureFromSurface(ren, grid.surf);
   grid.dest.h = MAJOR_BLOCK_SIZE * zoom;
   grid.dest.w = MAJOR_BLOCK_SIZE * zoom;
 }
@@ -439,7 +439,7 @@ void build_palette() {
     32,          4*4, RMASK,
     GMASK,       BMASK, AMASK
   );
-	palette.tex = SDL_CreateTextureFromSurface(ren, palette.surf);
+  palette.tex = SDL_CreateTextureFromSurface(ren, palette.surf);
   palette.dest.y = 0;
   palette.dest.h = 16 * 16;
   palette.dest.w = 4 * 16;
@@ -495,22 +495,22 @@ void draw_status_line() {
 
 void run_app(char* path) {
   status = path;
-	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-		printf("SDL_Init Error: %s\n", SDL_GetError());
+  if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+    printf("SDL_Init Error: %s\n", SDL_GetError());
     exit(1);
-	}
+  }
 
-	win = SDL_CreateWindow("Nexel", 0, 0, 640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-	if (win == NULL) {
-		printf("SDL_CreateWindow Error: %s\n", SDL_GetError());
+  win = SDL_CreateWindow("Nexel", 0, 0, 640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+  if (win == NULL) {
+    printf("SDL_CreateWindow Error: %s\n", SDL_GetError());
     exit(1);
-	}
+  }
 
-	ren = SDL_CreateRenderer(win, -1,SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	if (ren == NULL) {
-		printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
+  ren = SDL_CreateRenderer(win, -1,SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (ren == NULL) {
+    printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
     exit(1);
-	}
+  }
 
   // the color format you request stb_image to output,
   // use STBI_rgb if you don't want/need the alpha channel
@@ -550,11 +550,11 @@ void run_app(char* path) {
     exit(1);
   }
 
-	tex = SDL_CreateTextureFromSurface(ren, surf);
-	if (tex == NULL) {
-		printf("SDL_CreateTextureFromSurface Error: %s\n", SDL_GetError());
+  tex = SDL_CreateTextureFromSurface(ren, surf);
+  if (tex == NULL) {
+    printf("SDL_CreateTextureFromSurface Error: %s\n", SDL_GetError());
     exit(1);
-	}
+  }
 
   SDL_Event e;
   SDL_Rect clip = {
