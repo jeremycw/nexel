@@ -2,10 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "varry.h"
+#include "roboto.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 #define RMASK 0x000000ff
 #define GMASK 0x0000ff00
@@ -69,6 +72,13 @@ typedef struct {
   int copying;
   int pasting;
 } copy_t;
+
+typedef struct {
+  stbtt_bakedchar cdata[96];
+  unsigned char bmp[128*128];
+  SDL_Surface* surf;
+  SDL_Texture* tex;
+} font_t;
 
 undo_t* undo_head = NULL;
 
@@ -140,6 +150,7 @@ unsigned char pdata[] = {
 };
 
 copy_t copy;
+font_t font;
 
 void translate_coord(int x, int y, int* tx, int* ty) {
   *tx = (x - dest.x) / zoom; 
@@ -431,6 +442,32 @@ void build_palette() {
   palette.dest.w = 4 * 16;
 }
 
+
+void stbtt_GetBakedRect(
+  const stbtt_bakedchar *chardata,
+  int char_index,
+  int *xpos,
+  int *ypos,
+  SDL_Rect* src,
+  SDL_Rect* dst
+) {
+  const stbtt_bakedchar *b = chardata + char_index;
+  int round_x = *xpos + b->xoff;
+  int round_y = *ypos + b->yoff;
+
+  dst->x = round_x;
+  dst->y = round_y;
+  dst->w = b->x1 - b->x0;
+  dst->h = b->y1 - b->y0;
+
+  src->x = b->x0;
+  src->y = b->y0;
+  src->w = b->x1 - b->x0;
+  src->h = b->y1 - b->y0;
+
+  *xpos += b->xadvance;
+}
+
 void run_app(char* path) {
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		printf("SDL_Init Error: %s\n", SDL_GetError());
@@ -501,6 +538,23 @@ void run_app(char* path) {
     .w = 64
   };
 
+  stbtt_BakeFontBitmap(RobotoMono_Regular_ttf,0, 14.0, font.bmp, 128, 128, 32, 96, font.cdata);
+  font.surf = SDL_CreateRGBSurfaceFrom(
+    (void*)font.bmp, 128,   128,
+    8,              128, 0xFF,
+    0x0,           0x0, 0
+  );
+  char *text = "Hello, World!";
+  SDL_Rect src, dst;
+  x = 0, y = 0;
+  while (*text) {
+    stbtt_GetBakedRect(font.cdata, *text-32, &x, &y, &src, &dst);
+    printf("(%d, %d) [(%d, %d), (%d, %d)] [(%d, %d), (%d, %d)]\n", x, y, dst.x, dst.y, dst.w, dst.h, src.x, src.y, src.w, src.h);
+    text++;
+  }
+  font.tex = SDL_CreateTextureFromSurface(ren, font.surf);
+
+
   SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 
   while (!quit) {
@@ -531,6 +585,13 @@ void run_app(char* path) {
     SDL_RenderFillRect(ren, &clip);
     palette.dest.x = x - 16 * 4;
     SDL_RenderCopy(ren, palette.tex, NULL, &palette.dest);
+    SDL_Rect dst = {
+      .x = 0,
+      .y = 0,
+      .w = 128,
+      .h = 128
+    };
+    SDL_RenderCopy(ren, font.tex, NULL, &dst);
     SDL_RenderPresent(ren);
     SDL_WaitEvent(&e);
     handle_event(&e);
