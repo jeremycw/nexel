@@ -1,7 +1,7 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "varry.h"
+#include "varray.h"
 #include "image.h"
 #include "roboto.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -58,11 +58,11 @@ typedef struct {
   int color;
 } pixel_t;
 
-decl_varry(pixel_t);
+decl_varray(pixel_t);
 
 typedef struct undo_s {
   struct undo_s* next;
-  varry_t(pixel_t) pixels;
+  varray_t(pixel_t) pixels;
 } undo_t;
 
 typedef struct {
@@ -208,12 +208,12 @@ void paint(int x, int y) {
     .color = ((int*)data)[index]
   };
   if (undo_head) {
-    varry_t(pixel_t) px = undo_head->pixels;
+    varray_t(pixel_t) px = undo_head->pixels;
     int push = 1;
     for (int i = 0; i < px.size; i++) {
       if (px.buf[i].index == pixel.index) push = 0;
     }
-    if (push) varry_push(pixel_t, &undo_head->pixels, pixel);
+    if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
   }
   ((int*)data)[index] = color;
   build_image();
@@ -341,7 +341,7 @@ void start_undo_record() {
   undo_t* undo = malloc(sizeof(undo_t));
   undo->next = undo_head;
   undo_head = undo;
-  varry_init(pixel_t, &undo->pixels, 8);
+  varray_init(pixel_t, &undo->pixels, 8);
 }
 
 void snap_rect_to_block(SDL_Rect* rect, int zoom) {
@@ -360,7 +360,7 @@ void copy_pixels(SDL_Rect* src, int x, int y, int* data) {
       int di = dy * surf->w + dx;
       pixel_t pixel = { .index = di, .color = data[di] };
       data[di] = data[si];
-      varry_push(pixel_t, &undo_head->pixels, pixel);
+      varray_push(pixel_t, &undo_head->pixels, pixel);
     }
   }
 }
