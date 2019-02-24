@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "varry.h"
+#include "image.h"
 #include "roboto.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -31,6 +32,7 @@ SDL_Surface* surf;
 SDL_Texture* tex;
 SDL_Renderer* ren;
 unsigned char* data;
+char* status;
 
 typedef struct {
   SDL_Texture* tex;
@@ -75,7 +77,8 @@ typedef struct {
 
 typedef struct {
   stbtt_bakedchar cdata[96];
-  unsigned char bmp[128*128];
+  unsigned char alpha[128*96];
+  unsigned int bmp[128*96*4];
   SDL_Surface* surf;
   SDL_Texture* tex;
 } font_t;
@@ -468,7 +471,30 @@ void stbtt_GetBakedRect(
   *xpos += b->xadvance;
 }
 
+void render_text(char* text, int x, int y) {
+  SDL_Rect src, dst;
+  while (*text) {
+    stbtt_GetBakedRect(font.cdata, *text-32, &x, &y, &src, &dst);
+    SDL_RenderCopy(ren, font.tex, &src, &dst);
+    text++;
+  }
+}
+
+void draw_status_line() {
+  int x, y;
+  SDL_GetWindowSize(win, &x, &y);
+  SDL_Rect dst = {
+    .w = x,
+    .h = 16,
+    .x = 0,
+    .y = y - 16
+  };
+  SDL_RenderFillRect(ren, &dst);
+  render_text(status, 5, y - 4);
+}
+
 void run_app(char* path) {
+  status = path;
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		printf("SDL_Init Error: %s\n", SDL_GetError());
     exit(1);
@@ -538,26 +564,24 @@ void run_app(char* path) {
     .w = 64
   };
 
-  stbtt_BakeFontBitmap(RobotoMono_Regular_ttf,0, 14.0, font.bmp, 128, 128, 32, 96, font.cdata);
-  font.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)font.bmp, 128,   128,
-    8,              128, 0xFF,
-    0x0,           0x0, 0
+  stbtt_BakeFontBitmap(
+    RobotoMono_Regular_ttf, 0, 14.0,
+    font.alpha, 128, 96,
+    32, 96, font.cdata
   );
-  char *text = "Hello, World!";
-  SDL_Rect src, dst;
-  x = 0, y = 0;
-  while (*text) {
-    stbtt_GetBakedRect(font.cdata, *text-32, &x, &y, &src, &dst);
-    printf("(%d, %d) [(%d, %d), (%d, %d)] [(%d, %d), (%d, %d)]\n", x, y, dst.x, dst.y, dst.w, dst.h, src.x, src.y, src.w, src.h);
-    text++;
-  }
+  alpha_channel_to_rgba(font.alpha, font.bmp, 128*96, 0xa1a193);
+  font.surf = SDL_CreateRGBSurfaceFrom(
+    (void*)font.bmp, 128,   96,
+    32,              4*128, RMASK,
+    GMASK,           BMASK, AMASK
+  );
   font.tex = SDL_CreateTextureFromSurface(ren, font.surf);
 
 
   SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 
   while (!quit) {
+    SDL_SetRenderDrawColor(ren, 0, 0x2b, 0x36, 255);
     SDL_RenderClear(ren);
     SDL_RenderCopy(ren, tex, NULL, &dest);
     if (copy.copying) {
@@ -577,21 +601,15 @@ void run_app(char* path) {
       snap_rect_to_block(&dst, zoom);
       SDL_RenderCopy(ren, tex, &copy.rect, &dst);
     }
-    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
     clip.h = y;
+    SDL_SetRenderDrawColor(ren, 0x07, 0x36, 0x42, 255);
     SDL_RenderFillRect(ren, &clip);
     palette.dest.x = x - 16 * 4;
     SDL_RenderCopy(ren, palette.tex, NULL, &palette.dest);
-    SDL_Rect dst = {
-      .x = 0,
-      .y = 0,
-      .w = 128,
-      .h = 128
-    };
-    SDL_RenderCopy(ren, font.tex, NULL, &dst);
+    draw_status_line();
     SDL_RenderPresent(ren);
     SDL_WaitEvent(&e);
     handle_event(&e);

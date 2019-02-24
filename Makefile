@@ -1,4 +1,4 @@
-SOURCES=app.c
+SOURCES=app.c image.c
 TEST_SRCS=core_test.c
 BINARY_NAME=nexel
 LFLAGS+=-lsdl2
