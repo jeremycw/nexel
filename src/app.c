@@ -19,6 +19,23 @@
 #define BLOCK_SIZE 8
 #define MAJOR_BLOCK_SIZE 16
 
+#define pixel_loop(src_x, src_y, src_pitch, dst_x, dst_y, dst_pitch, w, h) \
+  for ( \
+    int y_ = 0, \
+        x_ = 0, \
+        i_ = 0, \
+        si = src_y * src_pitch + src_x, \
+        di = dst_y * dst_pitch + dst_x; \
+\
+    i_ < w * h; \
+\
+    ++i_, \
+    x_ = i_ % w, \
+    y_ = i_ / w, \
+    si = (y_ + src_y) * src_pitch + (x_ + src_x), \
+    di = (y_ + dst_y) * dst_pitch + (x_ + dst_x) \
+  )
+
 char* filename;
 SDL_Rect dest;
 int quit = 0;
@@ -31,7 +48,7 @@ SDL_Window* win;
 SDL_Surface* surf;
 SDL_Texture* tex;
 SDL_Renderer* ren;
-unsigned char* data;
+unsigned int* data;
 char* status;
 
 typedef struct {
@@ -70,7 +87,7 @@ typedef struct {
   SDL_Rect dest;
   SDL_Point start;
   SDL_Point end;
-  int* data;
+  unsigned int* data;
   int copying;
   int pasting;
   SDL_Texture* tex;
@@ -207,7 +224,7 @@ void paint(int x, int y) {
   int index = ty * width + tx;
   pixel_t pixel = {
     .index = index,
-    .color = ((int*)data)[index]
+    .color = data[index]
   };
   if (undo_head) {
     varray_t(pixel_t) px = undo_head->pixels;
@@ -217,14 +234,14 @@ void paint(int x, int y) {
     }
     if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
   }
-  ((int*)data)[index] = color;
+  data[index] = color;
   build_image();
 }
 
 void pick_color(int x, int y) {
   int tx, ty;
   translate_coord(x, y, &tx, &ty);
-  color = ((int*)data)[ty * width + tx];
+  color = data[ty * width + tx];
 }
 
 void start_copy(int x, int y) {
@@ -280,12 +297,8 @@ void end_copy() {
     SDL_DestroyTexture(copy.tex);
   }
   copy.data = malloc(4 * copy.rect.w * copy.rect.h);
-  for (int sy = copy.rect.y, dy = 0; dy < copy.rect.h; sy++, dy++) {
-    for (int sx = copy.rect.x, dx = 0; dx < copy.rect.w; sx++, dx++) {
-      int si = sy * surf->w + sx;
-      int di = dy * copy.rect.w + dx;
-      copy.data[di] = ((int*)data)[si];
-    }
+  pixel_loop(copy.rect.x, copy.rect.y, surf->w, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
+    copy.data[di] = data[si];
   }
   copy.surf = SDL_CreateRGBSurfaceFrom(
     (void*)copy.data, copy.rect.w, copy.rect.h,
@@ -336,14 +349,14 @@ void zoom_out() {
 }
 
 void save() {
-  stbi_write_png(filename, surf->w, surf->h, 4, data, surf->w*4);
+  stbi_write_png(filename, surf->w, surf->h, 4, (unsigned char*)data, surf->w*4);
 }
 
 void undo() {
   if (undo_head == NULL) return;
   for (int i = 0; i < undo_head->pixels.size; i++) {
     pixel_t pixel = undo_head->pixels.buf[i];
-    ((int*)data)[pixel.index] = pixel.color;
+    data[pixel.index] = pixel.color;
   }
   undo_t* tmp = undo_head;
   free(tmp->pixels.buf);
@@ -377,14 +390,10 @@ void paste(int x, int y) {
   translate_coord(x, y, &x, &y);
   x -= x % BLOCK_SIZE;
   y -= y % BLOCK_SIZE;
-  for (int sy = 0, dy = y; sy < copy.rect.h; sy++, dy++) {
-    for (int sx = 0, dx = x; sx < copy.rect.w; sx++, dx++) {
-      int si = sy * copy.rect.w + sx;
-      int di = dy * surf->w + dx;
-      pixel_t pixel = { .index = di, .color = ((int*)data)[di] };
-      ((int*)data)[di] = copy.data[si];
-      varray_push(pixel_t, &undo_head->pixels, pixel);
-    }
+  pixel_loop(0, 0, copy.rect.w, x, y, surf->w, copy.rect.w, copy.rect.h) {
+    pixel_t pixel = { .index = di, .color = data[di] };
+    data[di] = copy.data[si];
+    varray_push(pixel_t, &undo_head->pixels, pixel);
   }
   build_image();
 }
@@ -399,11 +408,32 @@ void end_paste() {
   copy.pasting = 0;
 }
 
+void rotate_paste() {
+  unsigned int* rotated = malloc(copy.rect.w * copy.rect.h * 4);
+  rotate_clockwise(copy.data, copy.rect.w, copy.rect.h, rotated);
+  free(copy.data);
+  copy.data = rotated;
+  int tmp = copy.rect.w;
+  copy.rect.w = copy.rect.h;
+  copy.rect.h = tmp;
+  SDL_FreeSurface(copy.surf);
+  SDL_DestroyTexture(copy.tex);
+  copy.surf = SDL_CreateRGBSurfaceFrom(
+    (void*)copy.data, copy.rect.w, copy.rect.h,
+    32,          copy.rect.w*4, RMASK,
+    GMASK,       BMASK, AMASK
+  );
+  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+}
+
 void handle_event(SDL_Event* e) {
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
-      if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
+      if (copy.pasting) {
+        if (e->key.keysym.sym == SDLK_r) rotate_paste();
+        if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
+      }
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
       if (e->key.keysym.sym == SDLK_MINUS) zoom_out();
       if (e->key.keysym.sym == SDLK_s) save();
@@ -548,7 +578,7 @@ void run_app(char* path) {
   // use STBI_rgb if you don't want/need the alpha channel
   int req_format = STBI_rgb_alpha;
   int orig_format;
-  data = stbi_load(path, &width, &height, &orig_format, req_format);
+  data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
   if(data == NULL) {
     SDL_Log("Loading image failed: %s", stbi_failure_reason());
     exit(1);
