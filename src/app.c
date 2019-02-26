@@ -426,6 +426,30 @@ void rotate_paste() {
   copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
 }
 
+void flip_horizontal() {
+  mirror_horizontal(copy.data, copy.rect.w, copy.rect.h);
+  SDL_FreeSurface(copy.surf);
+  SDL_DestroyTexture(copy.tex);
+  copy.surf = SDL_CreateRGBSurfaceFrom(
+    (void*)copy.data, copy.rect.w, copy.rect.h,
+    32,          copy.rect.w*4, RMASK,
+    GMASK,       BMASK, AMASK
+  );
+  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+}
+
+void flip_vertical() {
+  mirror_vertical(copy.data, copy.rect.w, copy.rect.h);
+  SDL_FreeSurface(copy.surf);
+  SDL_DestroyTexture(copy.tex);
+  copy.surf = SDL_CreateRGBSurfaceFrom(
+    (void*)copy.data, copy.rect.w, copy.rect.h,
+    32,          copy.rect.w*4, RMASK,
+    GMASK,       BMASK, AMASK
+  );
+  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+}
+
 void handle_event(SDL_Event* e) {
   int x, y, state;
   switch (e->type) {
@@ -433,6 +457,8 @@ void handle_event(SDL_Event* e) {
       if (copy.pasting) {
         if (e->key.keysym.sym == SDLK_r) rotate_paste();
         if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
+        if (e->key.keysym.sym == SDLK_h) flip_horizontal();
+        if (e->key.keysym.sym == SDLK_v) flip_vertical();
       }
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
       if (e->key.keysym.sym == SDLK_MINUS) zoom_out();

@@ -43,3 +43,27 @@ void rotate_clockwise(unsigned int* in, int w, int h, unsigned int* out) {
     }
   }
 }
+
+void mirror_horizontal(unsigned int* in, int w, int h) {
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w / 2; x++) {
+      int i = y * w + x;
+      int j = y * w + (w - x - 1);
+      int tmp = in[i];
+      in[i] = in[j];
+      in[j] = tmp;
+    }
+  }
+}
+
+void mirror_vertical(unsigned int* in, int w, int h) {
+  for (int y = 0; y < h / 2; y++) {
+    for (int x = 0; x < w; x++) {
+      int i = y * w + x;
+      int j = (h - y - 1) * w + x;
+      int tmp = in[i];
+      in[i] = in[j];
+      in[j] = tmp;
+    }
+  }
+}
