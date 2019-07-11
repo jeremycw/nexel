@@ -52,6 +52,31 @@ unsigned int* data;
 char* status;
 
 typedef struct {
+  int bpp;
+  int rmask;
+  int gmask;
+  int bmask;
+  int amask;
+} img_format_t;
+
+img_format_t rgb32 = {
+  .bpp = 32,
+  .rmask = RMASK,
+  .gmask = GMASK,
+  .bmask = BMASK,
+  .amask = AMASK,
+};
+
+typedef struct {
+  SDL_Surface* surf;
+  SDL_Texture* tex;
+  unsigned int* data;
+  int width;
+  int height;
+  img_format_t* format;
+} pixel_texture_t;
+
+typedef struct {
   SDL_Texture* tex;
   SDL_Surface* surf;
   int* data;
@@ -87,11 +112,9 @@ typedef struct {
   SDL_Rect dest;
   SDL_Point start;
   SDL_Point end;
-  unsigned int* data;
   int copying;
   int pasting;
-  SDL_Texture* tex;
-  SDL_Surface* surf;
+  pixel_texture_t pixel_texture;
 } copy_t;
 
 typedef struct {
@@ -173,6 +196,40 @@ unsigned char pdata[] = {
 
 copy_t copy;
 font_t font;
+
+void safe_free_texture(pixel_texture_t* pixel_texture) {
+  if (pixel_texture->data) {
+    free(pixel_texture->data);
+    pixel_texture->data = NULL;
+    SDL_FreeSurface(pixel_texture->surf);
+    SDL_DestroyTexture(pixel_texture->tex);
+  }
+}
+
+void build_texture(pixel_texture_t* pixel_texture) {
+  int pitch = pixel_texture->width * (pixel_texture->format->bpp / 8);
+  pixel_texture->surf = SDL_CreateRGBSurfaceFrom(
+    (void*)pixel_texture->data, pixel_texture->width, pixel_texture->height,
+    pixel_texture->format->bpp, pitch, pixel_texture->format->rmask,
+    pixel_texture->format->gmask, pixel_texture->format->bmask, pixel_texture->format->amask
+  );
+  pixel_texture->tex = SDL_CreateTextureFromSurface(ren, pixel_texture->surf);
+}
+
+void rebuild_texture(pixel_texture_t* pixel_texture) {
+  SDL_FreeSurface(pixel_texture->surf);
+  SDL_DestroyTexture(pixel_texture->tex);
+  build_texture(pixel_texture);
+}
+
+void build_texture_from_pixels(pixel_texture_t* pixel_texture, unsigned int* data, int w, int h, img_format_t* format) {
+  safe_free_texture(pixel_texture);
+  pixel_texture->width = w;
+  pixel_texture->height = h;
+  pixel_texture->data = data;
+  pixel_texture->format = format;
+  build_texture(pixel_texture);
+}
 
 void translate_coord(int x, int y, int* tx, int* ty) {
   *tx = (x - dest.x) / zoom; 
@@ -290,22 +347,11 @@ void end_copy() {
   translate_coord(copy.rect.x, copy.rect.y, &copy.rect.x, &copy.rect.y);
   copy.rect.w /= zoom;
   copy.rect.h /= zoom;
-  if (copy.data) {
-    free(copy.data);
-    copy.data = NULL;
-    SDL_FreeSurface(copy.surf);
-    SDL_DestroyTexture(copy.tex);
-  }
-  copy.data = malloc(4 * copy.rect.w * copy.rect.h);
+  unsigned int* new_data = malloc(4 * copy.rect.w * copy.rect.h);
   pixel_loop(copy.rect.x, copy.rect.y, surf->w, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
-    copy.data[di] = data[si];
+    new_data[di] = data[si];
   }
-  copy.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)copy.data, copy.rect.w, copy.rect.h,
-    32,          copy.rect.w*4, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+  build_texture_from_pixels(&copy.pixel_texture, new_data, copy.rect.w, copy.rect.h, &rgb32);
   copy.copying = 0;
   if (copy.rect.h > 1 || copy.rect.w > 1) {
     copy.pasting = 1;
@@ -392,62 +438,36 @@ void paste(int x, int y) {
   y -= y % BLOCK_SIZE;
   pixel_loop(0, 0, copy.rect.w, x, y, surf->w, copy.rect.w, copy.rect.h) {
     pixel_t pixel = { .index = di, .color = data[di] };
-    data[di] = copy.data[si];
+    data[di] = copy.pixel_texture.data[si];
     varray_push(pixel_t, &undo_head->pixels, pixel);
   }
   build_image();
 }
 
 void end_paste() {
-  if (copy.data) {
-    free(copy.data);
-    copy.data = NULL;
-    SDL_FreeSurface(copy.surf);
-    SDL_DestroyTexture(copy.tex);
-  }
+  safe_free_texture(&copy.pixel_texture);
   copy.pasting = 0;
 }
 
 void rotate_paste() {
   unsigned int* rotated = malloc(copy.rect.w * copy.rect.h * 4);
-  rotate_clockwise(copy.data, copy.rect.w, copy.rect.h, rotated);
-  free(copy.data);
-  copy.data = rotated;
+  rotate_clockwise(copy.pixel_texture.data, copy.rect.w, copy.rect.h, rotated);
+  free(copy.pixel_texture.data);
+  copy.pixel_texture.data = rotated;
   int tmp = copy.rect.w;
   copy.rect.w = copy.rect.h;
   copy.rect.h = tmp;
-  SDL_FreeSurface(copy.surf);
-  SDL_DestroyTexture(copy.tex);
-  copy.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)copy.data, copy.rect.w, copy.rect.h,
-    32,          copy.rect.w*4, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+  rebuild_texture(&copy.pixel_texture);
 }
 
 void flip_horizontal() {
-  mirror_horizontal(copy.data, copy.rect.w, copy.rect.h);
-  SDL_FreeSurface(copy.surf);
-  SDL_DestroyTexture(copy.tex);
-  copy.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)copy.data, copy.rect.w, copy.rect.h,
-    32,          copy.rect.w*4, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+  mirror_horizontal(copy.pixel_texture.data, copy.rect.w, copy.rect.h);
+  rebuild_texture(&copy.pixel_texture);
 }
 
 void flip_vertical() {
-  mirror_vertical(copy.data, copy.rect.w, copy.rect.h);
-  SDL_FreeSurface(copy.surf);
-  SDL_DestroyTexture(copy.tex);
-  copy.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)copy.data, copy.rect.w, copy.rect.h,
-    32,          copy.rect.w*4, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  copy.tex = SDL_CreateTextureFromSurface(ren, copy.surf);
+  mirror_vertical(copy.pixel_texture.data, copy.rect.w, copy.rect.h);
+  rebuild_texture(&copy.pixel_texture);
 }
 
 void handle_event(SDL_Event* e) {
@@ -583,6 +603,7 @@ void draw_status_line() {
 void run_app(char* path) {
   status = path;
   filename = path;
+  copy.pixel_texture.data = NULL;
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
     exit(1);
@@ -687,7 +708,7 @@ void run_app(char* path) {
         .h = copy.rect.h * zoom
       };
       snap_rect_to_block(&dst, zoom);
-      SDL_RenderCopy(ren, copy.tex, NULL, &dst);
+      SDL_RenderCopy(ren, copy.pixel_texture.tex, NULL, &dst);
     }
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
