@@ -74,9 +74,7 @@ typedef struct {
 } pixel_texture_t;
 
 typedef struct {
-  SDL_Texture* tex;
-  SDL_Surface* surf;
-  int* data;
+  pixel_texture_t pixel_texture;
   SDL_Rect dest;
   int on;
 } grid_t;
@@ -237,8 +235,8 @@ void translate_palette_coord(int x, int y, int* tx, int* ty) {
   *ty = (y - palette.dest.y) / 16;
 }
 
-int* create_grid_tile(int size) {
-  int* data = calloc(size * size, sizeof(int));
+unsigned int* create_grid_tile(int size) {
+  unsigned int* data = calloc(size * size, sizeof(unsigned int));
   for (int i = 0, j = 0; i < size; i++, j += size) {
     data[i] = 0xffffffff;
     if (i % 2 == 0) data[i + size/2 * size] = 0xffdddddd;
@@ -249,13 +247,9 @@ int* create_grid_tile(int size) {
 }
 
 void build_grid() {
-  grid.data = create_grid_tile(zoom * MAJOR_BLOCK_SIZE);
-  grid.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)grid.data, MAJOR_BLOCK_SIZE * zoom, MAJOR_BLOCK_SIZE * zoom,
-    32,          4*MAJOR_BLOCK_SIZE * zoom, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  grid.tex = SDL_CreateTextureFromSurface(ren, grid.surf);
+  unsigned int* data = create_grid_tile(zoom * MAJOR_BLOCK_SIZE);
+  int size = MAJOR_BLOCK_SIZE * zoom;
+  build_texture_from_pixels(&grid.pixel_texture, data, size, size, &rgb32);
   grid.dest.h = MAJOR_BLOCK_SIZE * zoom;
   grid.dest.w = MAJOR_BLOCK_SIZE * zoom;
 }
@@ -362,7 +356,6 @@ void zoom_in() {
   dest.h *= 2;
   dest.w *= 2;
   zoom *= 2;
-  free(grid.data);
   build_grid();
 }
 
@@ -375,7 +368,6 @@ void zoom_out() {
   dest.h /= 2;
   dest.w /= 2;
   zoom /= 2;
-  free(grid.data);
   build_grid();
 }
 
@@ -516,7 +508,7 @@ void draw_grid() {
   grid.dest.y = dest.y;
   for (int i = 0; i < image.height / MAJOR_BLOCK_SIZE; i++) {
     for (int j = 0; j < image.width / MAJOR_BLOCK_SIZE; j++) {
-      SDL_RenderCopy(ren, grid.tex, NULL, &grid.dest);
+      SDL_RenderCopy(ren, grid.pixel_texture.tex, NULL, &grid.dest);
       grid.dest.x += zoom * MAJOR_BLOCK_SIZE;
     }
     grid.dest.x = dest.x;
@@ -604,6 +596,7 @@ void run_app(char* path) {
   image.data = NULL;
   build_texture_from_pixels(&image, data, width, height, &rgb32);
 
+  grid.pixel_texture.data = NULL;
   build_grid();
   grid.on = 1;
   copy.pixel_texture.data = NULL;
