@@ -85,9 +85,7 @@ pixel_texture_t image;
 grid_t grid;
 
 typedef struct {
-  SDL_Surface* surf;
-  SDL_Texture* tex;
-  unsigned char* data;
+  pixel_texture_t pixel_texture;
   SDL_Rect dest;
 } palette_t;
 
@@ -490,7 +488,7 @@ void handle_event(SDL_Event* e) {
         if (in_bounds(&palette.dest, e->button.x, e->button.y)) {
           int tx, ty;
           translate_palette_coord(e->button.x, e->button.y, &tx, &ty);
-          color = ((int*)palette.data)[ty * 4 + tx];
+          color = palette.pixel_texture.data[ty * 4 + tx];
           break;
         }
         start_undo_record();
@@ -525,20 +523,6 @@ void draw_grid() {
     grid.dest.y += zoom * MAJOR_BLOCK_SIZE;
   }
 }
-
-void build_palette() {
-  palette.data = pdata;
-  palette.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)palette.data, 4, 16,
-    32,          4*4, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  palette.tex = SDL_CreateTextureFromSurface(ren, palette.surf);
-  palette.dest.y = 0;
-  palette.dest.h = 16 * 16;
-  palette.dest.w = 4 * 16;
-}
-
 
 void stbtt_GetBakedRect(
   const stbtt_bakedchar *chardata,
@@ -625,7 +609,12 @@ void run_app(char* path) {
   copy.pixel_texture.data = NULL;
   copy.copying = 0;
   copy.pasting = 0;
-  build_palette();
+
+  palette.pixel_texture.data = NULL;
+  build_texture_from_pixels(&palette.pixel_texture, (unsigned int*)pdata, 4, 16, &rgb32);
+  palette.dest.y = 0;
+  palette.dest.h = 16 * 16;
+  palette.dest.w = 4 * 16;
 
   int x, y;
   SDL_GetWindowSize(win, &x, &y);
@@ -686,7 +675,7 @@ void run_app(char* path) {
     SDL_SetRenderDrawColor(ren, 0x07, 0x36, 0x42, 255);
     SDL_RenderFillRect(ren, &clip);
     palette.dest.x = x - 16 * 4;
-    SDL_RenderCopy(ren, palette.tex, NULL, &palette.dest);
+    SDL_RenderCopy(ren, palette.pixel_texture.tex, NULL, &palette.dest);
     draw_status_line();
     SDL_RenderPresent(ren);
     SDL_WaitEvent(&e);
