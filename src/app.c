@@ -43,12 +43,8 @@ int quit = 0;
 int zoom = 1;
 int color = 0xffffffff;
 
-int width, height;
 SDL_Window* win;
-SDL_Surface* surf;
-SDL_Texture* tex;
 SDL_Renderer* ren;
-unsigned int* data;
 char* status;
 
 typedef struct {
@@ -73,6 +69,7 @@ typedef struct {
   unsigned int* data;
   int width;
   int height;
+  int pitch;
   img_format_t* format;
 } pixel_texture_t;
 
@@ -84,6 +81,7 @@ typedef struct {
   int on;
 } grid_t;
 
+pixel_texture_t image;
 grid_t grid;
 
 typedef struct {
@@ -207,10 +205,9 @@ void safe_free_texture(pixel_texture_t* pixel_texture) {
 }
 
 void build_texture(pixel_texture_t* pixel_texture) {
-  int pitch = pixel_texture->width * (pixel_texture->format->bpp / 8);
   pixel_texture->surf = SDL_CreateRGBSurfaceFrom(
     (void*)pixel_texture->data, pixel_texture->width, pixel_texture->height,
-    pixel_texture->format->bpp, pitch, pixel_texture->format->rmask,
+    pixel_texture->format->bpp, pixel_texture->pitch, pixel_texture->format->rmask,
     pixel_texture->format->gmask, pixel_texture->format->bmask, pixel_texture->format->amask
   );
   pixel_texture->tex = SDL_CreateTextureFromSurface(ren, pixel_texture->surf);
@@ -226,6 +223,7 @@ void build_texture_from_pixels(pixel_texture_t* pixel_texture, unsigned int* dat
   safe_free_texture(pixel_texture);
   pixel_texture->width = w;
   pixel_texture->height = h;
+  pixel_texture->pitch = w * (format->bpp / 8);
   pixel_texture->data = data;
   pixel_texture->format = format;
   build_texture(pixel_texture);
@@ -264,24 +262,13 @@ void build_grid() {
   grid.dest.w = MAJOR_BLOCK_SIZE * zoom;
 }
 
-void build_image() {
-  SDL_FreeSurface(surf);
-  SDL_DestroyTexture(tex);
-  surf = SDL_CreateRGBSurfaceFrom(
-    (void*)data, width, height,
-    32,          width*4, RMASK,
-    GMASK,       BMASK, AMASK
-  );
-  tex = SDL_CreateTextureFromSurface(ren, surf);
-}
-
 void paint(int x, int y) {
   int tx, ty;
   translate_coord(x, y, &tx, &ty);
-  int index = ty * width + tx;
+  int index = ty * image.width + tx;
   pixel_t pixel = {
     .index = index,
-    .color = data[index]
+    .color = image.data[index]
   };
   if (undo_head) {
     varray_t(pixel_t) px = undo_head->pixels;
@@ -291,14 +278,14 @@ void paint(int x, int y) {
     }
     if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
   }
-  data[index] = color;
-  build_image();
+  image.data[index] = color;
+  rebuild_texture(&image);
 }
 
 void pick_color(int x, int y) {
   int tx, ty;
   translate_coord(x, y, &tx, &ty);
-  color = data[ty * width + tx];
+  color = image.data[ty * image.width + tx];
 }
 
 void start_copy(int x, int y) {
@@ -348,8 +335,8 @@ void end_copy() {
   copy.rect.w /= zoom;
   copy.rect.h /= zoom;
   unsigned int* new_data = malloc(4 * copy.rect.w * copy.rect.h);
-  pixel_loop(copy.rect.x, copy.rect.y, surf->w, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
-    new_data[di] = data[si];
+  pixel_loop(copy.rect.x, copy.rect.y, image.width, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
+    new_data[di] = image.data[si];
   }
   build_texture_from_pixels(&copy.pixel_texture, new_data, copy.rect.w, copy.rect.h, &rgb32);
   copy.copying = 0;
@@ -395,20 +382,20 @@ void zoom_out() {
 }
 
 void save() {
-  stbi_write_png(filename, surf->w, surf->h, 4, (unsigned char*)data, surf->w*4);
+  stbi_write_png(filename, image.width, image.height, 4, (unsigned char*)image.data, image.pitch);
 }
 
 void undo() {
   if (undo_head == NULL) return;
   for (int i = 0; i < undo_head->pixels.size; i++) {
     pixel_t pixel = undo_head->pixels.buf[i];
-    data[pixel.index] = pixel.color;
+    image.data[pixel.index] = pixel.color;
   }
   undo_t* tmp = undo_head;
   free(tmp->pixels.buf);
   undo_head = tmp->next;
   free(tmp);
-  build_image();
+  rebuild_texture(&image);
 }
 
 int in_bounds(SDL_Rect* rect, int x, int y) {
@@ -436,12 +423,12 @@ void paste(int x, int y) {
   translate_coord(x, y, &x, &y);
   x -= x % BLOCK_SIZE;
   y -= y % BLOCK_SIZE;
-  pixel_loop(0, 0, copy.rect.w, x, y, surf->w, copy.rect.w, copy.rect.h) {
-    pixel_t pixel = { .index = di, .color = data[di] };
-    data[di] = copy.pixel_texture.data[si];
+  pixel_loop(0, 0, copy.rect.w, x, y, image.width, copy.rect.w, copy.rect.h) {
+    pixel_t pixel = { .index = di, .color = image.data[di] };
+    image.data[di] = copy.pixel_texture.data[si];
     varray_push(pixel_t, &undo_head->pixels, pixel);
   }
-  build_image();
+  rebuild_texture(&image);
 }
 
 void end_paste() {
@@ -529,8 +516,8 @@ void draw_grid() {
   if (!grid.on) return;
   grid.dest.x = dest.x;
   grid.dest.y = dest.y;
-  for (int i = 0; i < surf->h / MAJOR_BLOCK_SIZE; i++) {
-    for (int j = 0; j < surf->w / MAJOR_BLOCK_SIZE; j++) {
+  for (int i = 0; i < image.height / MAJOR_BLOCK_SIZE; i++) {
+    for (int j = 0; j < image.width / MAJOR_BLOCK_SIZE; j++) {
       SDL_RenderCopy(ren, grid.tex, NULL, &grid.dest);
       grid.dest.x += zoom * MAJOR_BLOCK_SIZE;
     }
@@ -603,7 +590,6 @@ void draw_status_line() {
 void run_app(char* path) {
   status = path;
   filename = path;
-  copy.pixel_texture.data = NULL;
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
     exit(1);
@@ -624,24 +610,19 @@ void run_app(char* path) {
   // the color format you request stb_image to output,
   // use STBI_rgb if you don't want/need the alpha channel
   int req_format = STBI_rgb_alpha;
-  int orig_format;
-  data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
+  int orig_format, width, height;
+  unsigned int* data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
   if(data == NULL) {
     SDL_Log("Loading image failed: %s", stbi_failure_reason());
     exit(1);
   }
 
-  // Set up the pixel format color masks for RGB(A) byte arrays.
-  // Only STBI_rgb (3) and STBI_rgb_alpha (4) are supported here!
-  int pitch = 4*width;
-  surf = SDL_CreateRGBSurfaceFrom(
-    (void*)data, width, height,
-    32,          pitch, RMASK,
-    GMASK,       BMASK, AMASK
-  );
+  image.data = NULL;
+  build_texture_from_pixels(&image, data, width, height, &rgb32);
 
   build_grid();
   grid.on = 1;
+  copy.pixel_texture.data = NULL;
   copy.copying = 0;
   copy.pasting = 0;
   build_palette();
@@ -652,18 +633,6 @@ void run_app(char* path) {
   dest.y = y / 2 - height / 2;
   dest.h = height;
   dest.w = width;
-
-  if (surf == NULL) {
-    SDL_Log("Creating surface failed: %s", SDL_GetError());
-    stbi_image_free(data);
-    exit(1);
-  }
-
-  tex = SDL_CreateTextureFromSurface(ren, surf);
-  if (tex == NULL) {
-    printf("SDL_CreateTextureFromSurface Error: %s\n", SDL_GetError());
-    exit(1);
-  }
 
   SDL_Event e;
   SDL_Rect clip = {
@@ -692,7 +661,7 @@ void run_app(char* path) {
   while (!quit) {
     SDL_SetRenderDrawColor(ren, 0, 0x2b, 0x36, 255);
     SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, tex, NULL, &dest);
+    SDL_RenderCopy(ren, image.tex, NULL, &dest);
     if (copy.copying) {
       SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
       coords_to_rect(copy.start, copy.end, &copy.dest);
@@ -727,10 +696,10 @@ void run_app(char* path) {
     }
   }
 
-  SDL_FreeSurface(surf);
-  stbi_image_free(data);
+  SDL_FreeSurface(image.surf);
+  stbi_image_free(image.data);
 
-  SDL_DestroyTexture(tex);
+  SDL_DestroyTexture(image.tex);
   SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
   SDL_Quit();
