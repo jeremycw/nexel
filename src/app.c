@@ -36,17 +36,6 @@
     di = (y_ + dst_y) * dst_pitch + (x_ + dst_x) \
   )
 
-char* filename;
-SDL_Rect dest;
-int quit = 0;
-
-int zoom = 1;
-int color = 0xffffffff;
-
-SDL_Window* win;
-SDL_Renderer* ren;
-char* status;
-
 typedef struct {
   int bpp;
   int rmask;
@@ -54,14 +43,6 @@ typedef struct {
   int bmask;
   int amask;
 } img_format_t;
-
-img_format_t rgb32 = {
-  .bpp = 32,
-  .rmask = RMASK,
-  .gmask = GMASK,
-  .bmask = BMASK,
-  .amask = AMASK,
-};
 
 typedef struct {
   SDL_Surface* surf;
@@ -71,23 +52,18 @@ typedef struct {
   int height;
   int pitch;
   img_format_t* format;
-} pixel_texture_t;
+} bitmap_t;
 
 typedef struct {
-  pixel_texture_t pixel_texture;
+  bitmap_t bitmap;
   SDL_Rect dest;
   int on;
 } grid_t;
 
-pixel_texture_t image;
-grid_t grid;
-
 typedef struct {
-  pixel_texture_t pixel_texture;
+  bitmap_t bitmap;
   SDL_Rect dest;
 } palette_t;
-
-palette_t palette;
 
 typedef struct {
   int index;
@@ -108,18 +84,14 @@ typedef struct {
   SDL_Point end;
   int copying;
   int pasting;
-  pixel_texture_t pixel_texture;
+  bitmap_t bitmap;
 } copy_t;
 
 typedef struct {
   stbtt_bakedchar cdata[96];
   unsigned char alpha[128*96];
-  unsigned int bmp[128*96*4];
-  SDL_Surface* surf;
-  SDL_Texture* tex;
+  bitmap_t bitmap;
 } font_t;
-
-undo_t* undo_head = NULL;
 
 unsigned char pdata[] = {
   124,124,124,255,
@@ -188,41 +160,66 @@ unsigned char pdata[] = {
   0,0,0,255,
 };
 
-copy_t copy;
-font_t font;
+img_format_t rgba32 = {
+  .bpp = 32,
+  .rmask = RMASK,
+  .gmask = GMASK,
+  .bmask = BMASK,
+  .amask = AMASK,
+};
 
-void safe_free_texture(pixel_texture_t* pixel_texture) {
-  if (pixel_texture->data) {
-    free(pixel_texture->data);
-    pixel_texture->data = NULL;
-    SDL_FreeSurface(pixel_texture->surf);
-    SDL_DestroyTexture(pixel_texture->tex);
+copy_t copy;
+undo_t* undo_head = NULL;
+
+int quit = 0;
+int zoom = 1;
+int color = 0xffffffff;
+
+char* filename;
+SDL_Window* win;
+SDL_Renderer* ren;
+
+SDL_Rect dest;
+bitmap_t image;
+
+grid_t grid;
+palette_t palette;
+
+font_t font;
+char* status;
+
+void safe_free_bitmap(bitmap_t* bitmap) {
+  if (bitmap->data) {
+    free(bitmap->data);
+    bitmap->data = NULL;
+    SDL_FreeSurface(bitmap->surf);
+    SDL_DestroyTexture(bitmap->tex);
   }
 }
 
-void build_texture(pixel_texture_t* pixel_texture) {
-  pixel_texture->surf = SDL_CreateRGBSurfaceFrom(
-    (void*)pixel_texture->data, pixel_texture->width, pixel_texture->height,
-    pixel_texture->format->bpp, pixel_texture->pitch, pixel_texture->format->rmask,
-    pixel_texture->format->gmask, pixel_texture->format->bmask, pixel_texture->format->amask
+void build_bitmap(bitmap_t* bitmap) {
+  bitmap->surf = SDL_CreateRGBSurfaceFrom(
+    (void*)bitmap->data, bitmap->width, bitmap->height,
+    bitmap->format->bpp, bitmap->pitch, bitmap->format->rmask,
+    bitmap->format->gmask, bitmap->format->bmask, bitmap->format->amask
   );
-  pixel_texture->tex = SDL_CreateTextureFromSurface(ren, pixel_texture->surf);
+  bitmap->tex = SDL_CreateTextureFromSurface(ren, bitmap->surf);
 }
 
-void rebuild_texture(pixel_texture_t* pixel_texture) {
-  SDL_FreeSurface(pixel_texture->surf);
-  SDL_DestroyTexture(pixel_texture->tex);
-  build_texture(pixel_texture);
+void rebuild_bitmap(bitmap_t* bitmap) {
+  SDL_FreeSurface(bitmap->surf);
+  SDL_DestroyTexture(bitmap->tex);
+  build_bitmap(bitmap);
 }
 
-void build_texture_from_pixels(pixel_texture_t* pixel_texture, unsigned int* data, int w, int h, img_format_t* format) {
-  safe_free_texture(pixel_texture);
-  pixel_texture->width = w;
-  pixel_texture->height = h;
-  pixel_texture->pitch = w * (format->bpp / 8);
-  pixel_texture->data = data;
-  pixel_texture->format = format;
-  build_texture(pixel_texture);
+void build_bitmap_from_pixels(bitmap_t* bitmap, unsigned int* data, int w, int h, img_format_t* format) {
+  safe_free_bitmap(bitmap);
+  bitmap->width = w;
+  bitmap->height = h;
+  bitmap->pitch = w * (format->bpp / 8);
+  bitmap->data = data;
+  bitmap->format = format;
+  build_bitmap(bitmap);
 }
 
 void translate_coord(int x, int y, int* tx, int* ty) {
@@ -249,7 +246,7 @@ unsigned int* create_grid_tile(int size) {
 void build_grid() {
   unsigned int* data = create_grid_tile(zoom * MAJOR_BLOCK_SIZE);
   int size = MAJOR_BLOCK_SIZE * zoom;
-  build_texture_from_pixels(&grid.pixel_texture, data, size, size, &rgb32);
+  build_bitmap_from_pixels(&grid.bitmap, data, size, size, &rgba32);
   grid.dest.h = MAJOR_BLOCK_SIZE * zoom;
   grid.dest.w = MAJOR_BLOCK_SIZE * zoom;
 }
@@ -271,7 +268,7 @@ void paint(int x, int y) {
     if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
   }
   image.data[index] = color;
-  rebuild_texture(&image);
+  rebuild_bitmap(&image);
 }
 
 void pick_color(int x, int y) {
@@ -330,7 +327,7 @@ void end_copy() {
   pixel_loop(copy.rect.x, copy.rect.y, image.width, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
     new_data[di] = image.data[si];
   }
-  build_texture_from_pixels(&copy.pixel_texture, new_data, copy.rect.w, copy.rect.h, &rgb32);
+  build_bitmap_from_pixels(&copy.bitmap, new_data, copy.rect.w, copy.rect.h, &rgba32);
   copy.copying = 0;
   if (copy.rect.h > 1 || copy.rect.w > 1) {
     copy.pasting = 1;
@@ -385,7 +382,7 @@ void undo() {
   free(tmp->pixels.buf);
   undo_head = tmp->next;
   free(tmp);
-  rebuild_texture(&image);
+  rebuild_bitmap(&image);
 }
 
 int in_bounds(SDL_Rect* rect, int x, int y) {
@@ -415,36 +412,36 @@ void paste(int x, int y) {
   y -= y % BLOCK_SIZE;
   pixel_loop(0, 0, copy.rect.w, x, y, image.width, copy.rect.w, copy.rect.h) {
     pixel_t pixel = { .index = di, .color = image.data[di] };
-    image.data[di] = copy.pixel_texture.data[si];
+    image.data[di] = copy.bitmap.data[si];
     varray_push(pixel_t, &undo_head->pixels, pixel);
   }
-  rebuild_texture(&image);
+  rebuild_bitmap(&image);
 }
 
 void end_paste() {
-  safe_free_texture(&copy.pixel_texture);
+  safe_free_bitmap(&copy.bitmap);
   copy.pasting = 0;
 }
 
 void rotate_paste() {
   unsigned int* rotated = malloc(copy.rect.w * copy.rect.h * 4);
-  rotate_clockwise(copy.pixel_texture.data, copy.rect.w, copy.rect.h, rotated);
-  free(copy.pixel_texture.data);
-  copy.pixel_texture.data = rotated;
+  rotate_clockwise(copy.bitmap.data, copy.rect.w, copy.rect.h, rotated);
+  free(copy.bitmap.data);
+  copy.bitmap.data = rotated;
   int tmp = copy.rect.w;
   copy.rect.w = copy.rect.h;
   copy.rect.h = tmp;
-  rebuild_texture(&copy.pixel_texture);
+  rebuild_bitmap(&copy.bitmap);
 }
 
 void flip_horizontal() {
-  mirror_horizontal(copy.pixel_texture.data, copy.rect.w, copy.rect.h);
-  rebuild_texture(&copy.pixel_texture);
+  mirror_horizontal(copy.bitmap.data, copy.rect.w, copy.rect.h);
+  rebuild_bitmap(&copy.bitmap);
 }
 
 void flip_vertical() {
-  mirror_vertical(copy.pixel_texture.data, copy.rect.w, copy.rect.h);
-  rebuild_texture(&copy.pixel_texture);
+  mirror_vertical(copy.bitmap.data, copy.rect.w, copy.rect.h);
+  rebuild_bitmap(&copy.bitmap);
 }
 
 void handle_event(SDL_Event* e) {
@@ -480,7 +477,7 @@ void handle_event(SDL_Event* e) {
         if (in_bounds(&palette.dest, e->button.x, e->button.y)) {
           int tx, ty;
           translate_palette_coord(e->button.x, e->button.y, &tx, &ty);
-          color = palette.pixel_texture.data[ty * 4 + tx];
+          color = palette.bitmap.data[ty * 4 + tx];
           break;
         }
         start_undo_record();
@@ -508,7 +505,7 @@ void draw_grid() {
   grid.dest.y = dest.y;
   for (int i = 0; i < image.height / MAJOR_BLOCK_SIZE; i++) {
     for (int j = 0; j < image.width / MAJOR_BLOCK_SIZE; j++) {
-      SDL_RenderCopy(ren, grid.pixel_texture.tex, NULL, &grid.dest);
+      SDL_RenderCopy(ren, grid.bitmap.tex, NULL, &grid.dest);
       grid.dest.x += zoom * MAJOR_BLOCK_SIZE;
     }
     grid.dest.x = dest.x;
@@ -545,7 +542,7 @@ void render_text(char* text, int x, int y) {
   SDL_Rect src, dst;
   while (*text) {
     stbtt_GetBakedRect(font.cdata, *text-32, &x, &y, &src, &dst);
-    SDL_RenderCopy(ren, font.tex, &src, &dst);
+    SDL_RenderCopy(ren, font.bitmap.tex, &src, &dst);
     text++;
   }
 }
@@ -594,17 +591,19 @@ void run_app(char* path) {
   }
 
   image.data = NULL;
-  build_texture_from_pixels(&image, data, width, height, &rgb32);
+  palette.bitmap.data = NULL;
+  grid.bitmap.data = NULL;
+  copy.bitmap.data = NULL;
+  font.bitmap.data = NULL;
 
-  grid.pixel_texture.data = NULL;
+  build_bitmap_from_pixels(&image, data, width, height, &rgba32);
+
   build_grid();
   grid.on = 1;
-  copy.pixel_texture.data = NULL;
   copy.copying = 0;
   copy.pasting = 0;
 
-  palette.pixel_texture.data = NULL;
-  build_texture_from_pixels(&palette.pixel_texture, (unsigned int*)pdata, 4, 16, &rgb32);
+  build_bitmap_from_pixels(&palette.bitmap, (unsigned int*)pdata, 4, 16, &rgba32);
   palette.dest.y = 0;
   palette.dest.h = 16 * 16;
   palette.dest.w = 4 * 16;
@@ -629,14 +628,10 @@ void run_app(char* path) {
     font.alpha, 128, 96,
     32, 96, font.cdata
   );
-  alpha_channel_to_rgba(font.alpha, font.bmp, 128*96, 0xa1a193);
-  font.surf = SDL_CreateRGBSurfaceFrom(
-    (void*)font.bmp, 128,   96,
-    32,              4*128, RMASK,
-    GMASK,           BMASK, AMASK
-  );
-  font.tex = SDL_CreateTextureFromSurface(ren, font.surf);
 
+  unsigned int* bmp = malloc(128 * 96 * sizeof(unsigned int));
+  alpha_channel_to_rgba(font.alpha, bmp, 128*96, 0xa1a193);
+  build_bitmap_from_pixels(&font.bitmap, bmp, 128, 96, &rgba32);
 
   SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 
@@ -659,7 +654,7 @@ void run_app(char* path) {
         .h = copy.rect.h * zoom
       };
       snap_rect_to_block(&dst, zoom);
-      SDL_RenderCopy(ren, copy.pixel_texture.tex, NULL, &dst);
+      SDL_RenderCopy(ren, copy.bitmap.tex, NULL, &dst);
     }
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
@@ -668,7 +663,7 @@ void run_app(char* path) {
     SDL_SetRenderDrawColor(ren, 0x07, 0x36, 0x42, 255);
     SDL_RenderFillRect(ren, &clip);
     palette.dest.x = x - 16 * 4;
-    SDL_RenderCopy(ren, palette.pixel_texture.tex, NULL, &palette.dest);
+    SDL_RenderCopy(ren, palette.bitmap.tex, NULL, &palette.dest);
     draw_status_line();
     SDL_RenderPresent(ren);
     SDL_WaitEvent(&e);
@@ -685,6 +680,4 @@ void run_app(char* path) {
   SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
   SDL_Quit();
-
-  exit(1);
 }
