@@ -2,40 +2,40 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread/pthread.h>
-#include "../src/pool.h"
+#include "../src/pipe.h"
 
 void* producer(void* arg) {
-  pool_t* pool = arg;
+  pipe_t* pipe = arg;
   int data[1024];
   for (int i = 0; i < 1024; i++) {
     data[i] = i;
   }
   for (int i = 0; i < 1000; i++) {
-    write_t* write = pool_alloc_block_for_write(pool, sizeof(data));
+    write_t* write = pipe_alloc_block_for_write(pipe, sizeof(data));
     memcpy(write->buf, data, sizeof(data));
-    pool_commit_write(pool, write);
+    pipe_commit_write(pipe, write);
     usleep(100);
   }
   return NULL;
 }
 
 void* consumer(void* arg) {
-  pool_t* pool = arg;
+  pipe_t* pipe = arg;
   int* data;
   int reference[1024];
   for (int i = 0; i < 1024; i++) {
     reference[i] = i;
   }
   for (int i = 0; i < 1000; i++) {
-    pool_reader_t reader;
-    pool_read(pool, &reader, (void**)&data, sizeof(reference));
+    pipe_reader_t reader;
+    pipe_read(pipe, &reader, (void**)&data, sizeof(reference));
     assert(memcmp(data, reference, sizeof(reference)) == 0);
   }
   return NULL;
 }
 
 typedef struct {
-  pool_t* pool;
+  pipe_t* pipe;
   char* str;
 } str_producer_arg_t;
 
@@ -44,26 +44,26 @@ char* str2 = "By default, vectors, quaternions and matrices can be declared as a
 
 void* str_producer(void* arg) {
   str_producer_arg_t* a = arg;
-  pool_t* pool = a->pool;
+  pipe_t* pipe = a->pipe;
   char* str = a->str;
   for (int i = 0; i < 2000; i++) {
     int bytes = strlen(str) + 1;
-    write_t* write = pool_alloc_block_for_write(pool, bytes);
+    write_t* write = pipe_alloc_block_for_write(pipe, bytes);
     memcpy(write->buf, str, bytes);
-    pool_commit_write(pool, write);
+    pipe_commit_write(pipe, write);
     usleep(100);
   }
   return NULL;
 }
 
 void* str_consumer(void* arg) {
-  pool_t* pool = arg;
+  pipe_t* pipe = arg;
   int count = 0;
   char* ptr;
-  pool_reader_t reader = pool_new_reader(pool);
+  pipe_reader_t reader = pipe_new_reader(pipe);
   ssize_t bytes;
   while (count < 4000) {
-    bytes = pool_read(pool, &reader, (void**)&ptr, -1);
+    bytes = pipe_read(pipe, &reader, (void**)&ptr, -1);
     assert(bytes > 0);
     while (bytes > 0) {
       assert(
@@ -79,31 +79,31 @@ void* str_consumer(void* arg) {
   return NULL;
 }
 
-void test_pool() {
+void test_pipe() {
   {
-    pool_t pool2;
-    pool_new(&pool2, sizeof(int) * 4);
-    pool_reader_t reader = pool_new_reader(&pool2);
+    pipe_t pipe2;
+    pipe_new(&pipe2, sizeof(int) * 4);
+    pipe_reader_t reader = pipe_new_reader(&pipe2);
     int array[6] = {0, 1, 2, 3, 4, 5};
-    write_t* write = pool_alloc_block_for_write(&pool2, 4 * sizeof(int));
+    write_t* write = pipe_alloc_block_for_write(&pipe2, 4 * sizeof(int));
     memcpy(write->buf, array, sizeof(int) * 4);
-    pool_commit_write(&pool2, write);
+    pipe_commit_write(&pipe2, write);
     int* read;
-    size_t bytes = pool_read(&pool2, &reader, (void**)&read, -1);
+    size_t bytes = pipe_read(&pipe2, &reader, (void**)&read, -1);
     assert(bytes == sizeof(int) * 4);
     for (int i = 0; i < 4; i++) {
       assert(read[i] == i);
     }
-    write = pool_alloc_block_for_write(&pool2, 2 * sizeof(int));
+    write = pipe_alloc_block_for_write(&pipe2, 2 * sizeof(int));
     memcpy(write->buf, &array[4], sizeof(int) * 2);
-    pool_commit_write(&pool2, write);
-    bytes = pool_read(&pool2, &reader, (void**)&read, -1);
+    pipe_commit_write(&pipe2, write);
+    bytes = pipe_read(&pipe2, &reader, (void**)&read, -1);
     assert(read[0] == 4);
     assert(read[1] == 5);
-    write = pool_alloc_block_for_write(&pool2, 3 * sizeof(int));
+    write = pipe_alloc_block_for_write(&pipe2, 3 * sizeof(int));
     memcpy(write->buf, array, sizeof(int) * 3);
-    pool_commit_write(&pool2, write);
-    bytes = pool_read(&pool2, &reader, (void**)&read, -1);
+    pipe_commit_write(&pipe2, write);
+    bytes = pipe_read(&pipe2, &reader, (void**)&read, -1);
     assert(bytes == sizeof(int) * 3);
     assert(read[0] == 0);
     assert(read[1] == 1);
@@ -111,22 +111,22 @@ void test_pool() {
   }
 
   {
-    pool_t pool;
-    pool_new(&pool, 8 * 1024 * 1024);
+    pipe_t pipe;
+    pipe_new(&pipe, 8 * 1024 * 1024);
     pthread_t p, c;
-    pthread_create(&p, NULL, producer, &pool);
-    pthread_create(&c, NULL, consumer, &pool);
+    pthread_create(&p, NULL, producer, &pipe);
+    pthread_create(&c, NULL, consumer, &pipe);
     pthread_join(p, NULL);
     pthread_join(c, NULL);
   }
 
   {
-    pool_t pool;
-    pool_new(&pool, 4 * 1024);
+    pipe_t pipe;
+    pipe_new(&pipe, 4 * 1024);
     pthread_t p1, p2, c;
-    str_producer_arg_t parg1 = { &pool, str1 };
-    str_producer_arg_t parg2 = { &pool, str2 };
-    pthread_create(&c, NULL, str_consumer, &pool);
+    str_producer_arg_t parg1 = { &pipe, str1 };
+    str_producer_arg_t parg2 = { &pipe, str2 };
+    pthread_create(&c, NULL, str_consumer, &pipe);
     pthread_create(&p1, NULL, str_producer, &parg1);
     pthread_create(&p2, NULL, str_producer, &parg2);
     pthread_join(p1, NULL);
