@@ -2,14 +2,13 @@
 #include <pthread/pthread.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include "pipe.h"
 
 void pipe_new(pipe_t* pipe, ssize_t capacity) {
-  pipe->current.generation = 0;
-  pipe->current.index = 0;
-  pipe->safe.generation = 0;
-  pipe->safe.index = 0;
+  pipe->current = 0;
+  pipe->safe = 0;
   pipe->writers = 0;
   pipe->capacity = capacity;
   pipe->end_padding = 0;
@@ -31,33 +30,22 @@ write_t* write_queue_enqueue(write_queue_t* write_queue, ssize_t bytes) {
   return w;
 }
 
-gen_index_t increment_index(
-  gen_index_t gi,
-  ssize_t capacity,
-  ssize_t increment
-) {
-  ssize_t initial = gi.index;
-  if (gi.index + increment > capacity) {
-    gi.index = increment;
-    gi.generation++;
+int increment_index(ssize_t* index, ssize_t capacity, ssize_t inc) {
+  ssize_t old = *index;
+  ssize_t new = *index + inc;
+  ssize_t new_i = new % capacity;
+  ssize_t old_i = old % capacity;
+  int wrapped = new_i < old_i;
+  if (wrapped) {
+    *index = capacity * (new / capacity) + inc;
   } else {
-    gi.index = (gi.index + increment) % capacity;
-    if (gi.index < initial || increment == capacity) gi.generation++;
+    *index = new;
   }
-  return gi;
+  return wrapped || inc == capacity;
 }
 
-int cmp_index(gen_index_t a, gen_index_t b) {
-  if (
-    a.generation > b.generation
-    || (a.index > b.index && a.generation == b.generation)
-  ) {
-    return 1;
-  } else if (a.index == b.index && a.generation == b.generation) {
-    return 0;
-  } else {
-    return -1;
-  }
+int cmp_index(ssize_t a, ssize_t b) {
+  return a - b;
 }
 
 void write_queue_process(pipe_t* pipe) {
@@ -67,7 +55,7 @@ void write_queue_process(pipe_t* pipe) {
     && write_queue->head < write_queue->tail
   ) {
     ssize_t bytes = write_queue->queue[write_queue->head].bytes;
-    pipe->safe = increment_index(pipe->safe, pipe->capacity, bytes);
+    increment_index(&pipe->safe, pipe->capacity, bytes);
     write_queue->head++;
   }
   if (write_queue->head == write_queue->tail) {
@@ -78,12 +66,13 @@ void write_queue_process(pipe_t* pipe) {
 
 write_t* pipe_alloc_block_for_write(pipe_t* pipe, ssize_t bytes) {
   pthread_mutex_lock(&pipe->mutex);
-  void* addr = &pipe->buffer[pipe->current.index];
-  gen_index_t initial = pipe->current;
-  pipe->current = increment_index(pipe->current, pipe->capacity, bytes);
-  if (pipe->current.generation > initial.generation) {
+  char* addr = &pipe->buffer[pipe->current % pipe->capacity];
+  ssize_t old = pipe->current;
+  ssize_t old_i = old % pipe->capacity;
+  int wrapped = increment_index(&pipe->current, pipe->capacity, bytes);
+  if (wrapped) {
     addr = pipe->buffer;
-    pipe->end_padding = (pipe->capacity - initial.index) % bytes;
+    pipe->end_padding = (pipe->capacity - old_i) % bytes;
   }
   pipe->writers++;
   write_t* write = write_queue_enqueue(&pipe->write_queue, bytes);
@@ -101,47 +90,30 @@ void pipe_commit_write(pipe_t* pipe, write_t* write) {
   pthread_mutex_unlock(&pipe->mutex);
 }
 
-ssize_t pipe_read(
-  pipe_t* pipe,
-  pipe_reader_t* pipe_reader,
-  void** dst,
-  ssize_t max_bytes
-) {
+ssize_t pipe_read(pipe_t* pipe, ssize_t* read_index, void** dst) {
   pthread_mutex_lock(&pipe->mutex);
-  if (cmp_index(*pipe_reader, pipe->safe) != -1) {
+  if (cmp_index(*read_index, pipe->safe) >= 0) {
     pthread_cond_wait(&pipe->cond, &pipe->mutex);
   }
+  ssize_t r_i = *read_index % pipe->capacity;
   ssize_t end_padding = pipe->end_padding;
-  if (pipe->capacity - pipe_reader->index == end_padding) {
-    pipe_reader->index = 0;
-    pipe_reader->generation++;
+  if (pipe->capacity - r_i == end_padding) {
+    *read_index += end_padding;
+    r_i = 0;
   }
-  gen_index_t safe = pipe->safe;
-  gen_index_t current = pipe->current;
   pthread_mutex_unlock(&pipe->mutex);
-  //reader too far behind writes, lost data
-  if (
-    pipe_reader->index < current.index
-    && pipe_reader->generation < current.generation
-  ) {
-    return -1;
-  }
-  *dst = &pipe->buffer[pipe_reader->index];
-  ssize_t remaining_read_bytes;
-  if (pipe_reader->generation == safe.generation) {
-    remaining_read_bytes = safe.index - pipe_reader->index;
-  } else {
-    remaining_read_bytes = pipe->capacity - end_padding - pipe_reader->index;
-  }
-  ssize_t actual_bytes = remaining_read_bytes > max_bytes && max_bytes != -1 ?
-    max_bytes : remaining_read_bytes;
-  *pipe_reader = increment_index(*pipe_reader, pipe->capacity, actual_bytes);
-  return actual_bytes;
-}
 
-pipe_reader_t pipe_new_reader(pipe_t* pipe) {
-  pthread_mutex_lock(&pipe->mutex);
-  pipe_reader_t reader = pipe->safe;
-  pthread_mutex_unlock(&pipe->mutex);
-  return reader;
+  //reader too far behind writes, lost data
+  if (pipe->current - *read_index > pipe->capacity) return -1;
+
+  *dst = &pipe->buffer[r_i];
+  ssize_t w_i = pipe->safe % pipe->capacity;
+  ssize_t remaining_read_bytes;
+  if (r_i < w_i) {
+    remaining_read_bytes = w_i - r_i; 
+  } else {
+    remaining_read_bytes = pipe->capacity - end_padding - r_i;
+  }
+  increment_index(read_index, pipe->capacity, remaining_read_bytes);
+  return remaining_read_bytes;
 }
