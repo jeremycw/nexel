@@ -4,6 +4,8 @@
 #include "varray.h"
 #include "image.h"
 #include "roboto.h"
+#include "nes.h"
+#include "threads.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -70,7 +72,8 @@ typedef struct {
   int color;
 } pixel_t;
 
-decl_varray(pixel_t);
+varray_decl(pixel_t);
+varray_defn(pixel_t);
 
 typedef struct undo_s {
   struct undo_s* next;
@@ -187,6 +190,8 @@ palette_t palette;
 
 font_t font;
 char* status;
+
+threadpool global_thread_pool = NULL;
 
 void safe_free_bitmap(bitmap_t* bitmap) {
   if (bitmap->data) {
@@ -563,6 +568,9 @@ void draw_status_line() {
 void run_app(char* path) {
   status = path;
   filename = path;
+
+  global_thread_pool = thpool_init(GLOBAL_THREAD_POOL_SIZE);
+
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
     exit(1);
