@@ -2,7 +2,6 @@
 #include <pthread/pthread.h>
 #include <string.h>
 #include <assert.h>
-#include <stdio.h>
 
 #include "pipe.h"
 
@@ -42,10 +41,6 @@ int increment_index(ssize_t* index, ssize_t capacity, ssize_t inc) {
     *index = new;
   }
   return wrapped || inc == capacity;
-}
-
-int cmp_index(ssize_t a, ssize_t b) {
-  return a - b;
 }
 
 void write_queue_process(pipe_t* pipe) {
@@ -92,7 +87,7 @@ void pipe_commit_write(pipe_t* pipe, write_t* write) {
 
 ssize_t pipe_read(pipe_t* pipe, ssize_t* read_index, void** dst) {
   pthread_mutex_lock(&pipe->mutex);
-  if (cmp_index(*read_index, pipe->safe) >= 0) {
+  if (*read_index - pipe->safe >= 0) {
     pthread_cond_wait(&pipe->cond, &pipe->mutex);
   }
   ssize_t r_i = *read_index % pipe->capacity;
