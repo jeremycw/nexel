@@ -247,14 +247,12 @@ void paint(int x, int y) {
     .index = index,
     .color = image.data[index]
   };
-  if (undo_head) {
-    varray_t(pixel_t) px = undo_head->pixels;
-    int push = 1;
-    for (int i = 0; i < px.size; i++) {
-      if (px.buf[i].index == pixel.index) push = 0;
-    }
-    if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
+  varray_t(pixel_t) px = undo_head->pixels;
+  int push = 1;
+  for (int i = 0; i < px.size; i++) {
+    if (px.buf[i].index == pixel.index) push = 0;
   }
+  if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
   image.data[index] = color;
   rebuild_bitmap(&image);
 }
