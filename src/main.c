@@ -1,6 +1,18 @@
+#include <stdlib.h>
+#include <string.h>
 #include "app.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) return 1;
-  run_app(argv[1]);
+  int width, height;
+  if (argc > 2) {
+    char* w = strtok(argv[2], "x");
+    char* h = strtok(NULL, "x");
+    width = atoi(w);
+    height = atoi(h);
+  } else {
+    width = 128;
+    height = 128;
+  }
+  run_app(argv[1], width, height);
 }

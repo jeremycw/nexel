@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "varray.h"
 #include "image.h"
 #include "roboto.h"
@@ -546,7 +547,7 @@ void draw_status_line() {
   render_text(status, 5, y - 4);
 }
 
-void run_app(char* path) {
+void run_app(char* path, int width, int height) {
   status = path;
   filename = path;
 
@@ -569,14 +570,23 @@ void run_app(char* path) {
     exit(1);
   }
 
-  // the color format you request stb_image to output,
-  // use STBI_rgb if you don't want/need the alpha channel
   int req_format = STBI_rgb_alpha;
-  int orig_format, width, height;
-  unsigned int* data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
-  if(data == NULL) {
-    SDL_Log("Loading image failed: %s", stbi_failure_reason());
-    exit(1);
+  int orig_format;
+  unsigned int* data;
+  if (access(path, F_OK) != -1) {
+    // file exists
+    data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
+    if(data == NULL) {
+      SDL_Log("Loading image failed: %s", stbi_failure_reason());
+      exit(1);
+    }
+  } else {
+    int pixels = width * height;
+    size_t bytes = sizeof(unsigned int) * pixels;
+    data = malloc(bytes);
+    for (int i = 0; i < pixels; i++) {
+      data[i] = 0xFF000000;
+    }
   }
 
   image.data = NULL;
