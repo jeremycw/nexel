@@ -20,7 +20,7 @@ int cmp_int(const void* a, const void* b) {
 void process_tiles(uint32_t* data, int index, int n, void* arg) {
   int ppb = BLOCK_SIZE * BLOCK_SIZE;
   pal4_t* palettes = (pal4_t*)arg;
-  for (int i = index * ppb; i < n + index * ppb; i += ppb) {
+  for (int i = index * ppb; i < (index + n) * ppb; i += ppb) {
     mergesort(&data[i], ppb, sizeof(uint32_t), cmp_int);
     pal4_t pal = { .colours = { data[i], 0, 0, 0 } };
     int pi = 0;

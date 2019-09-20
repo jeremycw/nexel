@@ -10,9 +10,10 @@ void test_nes() {
   unsigned int* data = (unsigned int*)stbi_load("test/test.png", &width, &height, &orig_format, req_format);
   assert(data != NULL);
 
-  pal4_t palettes[256];
+  pal4_t palettes[8];
   detect_palettes(data, width, height, palettes);
   varray_t(pal4_t) varray;
   varray_init(pal4_t, &varray, 4);
-  unique_palettes(palettes, 256, &varray);
+  unique_palettes(palettes, 8, &varray);
+  assert(varray.size == 7);
 }
