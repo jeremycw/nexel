@@ -8,20 +8,13 @@
 #include "nes.h"
 #include "threads.h"
 #include "bitmap.h"
+#include "copypaste.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-
-#define RMASK 0x000000ff
-#define GMASK 0x0000ff00
-#define BMASK 0x00ff0000
-#define AMASK 0xff000000
-
-#define BLOCK_SIZE 8
-#define MAJOR_BLOCK_SIZE 16
 
 typedef struct {
   bitmap_t bitmap;
@@ -33,29 +26,6 @@ typedef struct {
   bitmap_t bitmap;
   SDL_Rect dest;
 } palette_t;
-
-typedef struct {
-  int index;
-  int color;
-} pixel_t;
-
-varray_decl(pixel_t);
-varray_defn(pixel_t);
-
-typedef struct undo_s {
-  struct undo_s* next;
-  varray_t(pixel_t) pixels;
-} undo_t;
-
-typedef struct {
-  SDL_Rect rect;
-  SDL_Rect dest;
-  SDL_Point start;
-  SDL_Point end;
-  int copying;
-  int pasting;
-  bitmap_t bitmap;
-} copy_t;
 
 typedef struct {
   stbtt_bakedchar cdata[96];
@@ -130,26 +100,17 @@ unsigned char pdata[] = {
   0,0,0,255,
 };
 
-img_format_t rgba32 = {
-  .bpp = 32,
-  .rmask = RMASK,
-  .gmask = GMASK,
-  .bmask = BMASK,
-  .amask = AMASK,
-};
+view_t view;
 
-copy_t copy;
 undo_t* undo_head = NULL;
 
 int quit = 0;
-int zoom = 1;
 int color = 0xffffffff;
 
 char* filename;
 SDL_Window* win;
 SDL_Renderer* ren;
 
-SDL_Rect dest;
 bitmap_t image;
 
 grid_t grid;
@@ -159,11 +120,6 @@ font_t font;
 char* status;
 
 threadpool global_thread_pool = NULL;
-
-void translate_coord(int x, int y, int* tx, int* ty) {
-  *tx = (x - dest.x) / zoom; 
-  *ty = (y - dest.y) / zoom;
-}
 
 void translate_palette_coord(int x, int y, int* tx, int* ty) {
   *tx = (x - palette.dest.x) / 16; 
@@ -182,16 +138,16 @@ unsigned int* create_grid_tile(int size) {
 }
 
 void build_grid() {
-  unsigned int* data = create_grid_tile(zoom * MAJOR_BLOCK_SIZE);
-  int size = MAJOR_BLOCK_SIZE * zoom;
+  unsigned int* data = create_grid_tile(view.scale * MAJOR_BLOCK_SIZE);
+  int size = MAJOR_BLOCK_SIZE * view.scale;
   build_bitmap_from_pixels(&grid.bitmap, data, size, size, &rgba32);
-  grid.dest.h = MAJOR_BLOCK_SIZE * zoom;
-  grid.dest.w = MAJOR_BLOCK_SIZE * zoom;
+  grid.dest.h = MAJOR_BLOCK_SIZE * view.scale;
+  grid.dest.w = MAJOR_BLOCK_SIZE * view.scale;
 }
 
 void paint(int x, int y) {
   int tx, ty;
-  translate_coord(x, y, &tx, &ty);
+  translate_coord(x, y, &tx, &ty, &view);
   int index = ty * image.width + tx;
   pixel_t pixel = {
     .index = index,
@@ -209,72 +165,19 @@ void paint(int x, int y) {
 
 void pick_color(int x, int y) {
   int tx, ty;
-  translate_coord(x, y, &tx, &ty);
+  translate_coord(x, y, &tx, &ty, &view);
   color = image.data[ty * image.width + tx];
-}
-
-void start_copy(int x, int y) {
-  copy.copying = 1;
-  copy.start.x = x;
-  copy.start.y = y;
-  copy.end.x = x;
-  copy.end.y = y;
-}
-
-void coords_to_rect(SDL_Point start, SDL_Point end, SDL_Rect* rect) {
-  int dx = end.x - start.x;
-  int dy = end.y - start.y;
-  if (dx < 0) {
-    rect->x = end.x;
-    rect->w = dx * -1;
-  } else {
-    rect->x = start.x;
-    rect->w = dx;
-  }
-  if (dy < 0) {
-    rect->y = end.y;
-    rect->h = dy * -1;
-  } else {
-    rect->y = start.y;
-    rect->h = dy;
-  }
 }
 
 void print_rect(char* name, SDL_Rect* rect) {
   printf("%s: [(%d, %d), (%d, %d)]\n", name, rect->x, rect->y, rect->w, rect->h);
 }
 
-void snap_rect_to_pixel(SDL_Rect* rect) {
-  int offsetx = dest.x % zoom;
-  int offsety = dest.y % zoom;
-  rect->x -= (rect->x - offsetx) % zoom;
-  rect->y -= (rect->y - offsety) % zoom;
-  rect->w -= rect->w % zoom;
-  rect->h -= rect->h % zoom;
-}
-
-void end_copy() {
-  coords_to_rect(copy.start, copy.end, &copy.rect);
-  snap_rect_to_pixel(&copy.rect);
-  translate_coord(copy.rect.x, copy.rect.y, &copy.rect.x, &copy.rect.y);
-  copy.rect.w /= zoom;
-  copy.rect.h /= zoom;
-  unsigned int* new_data = malloc(4 * copy.rect.w * copy.rect.h);
-  pixel_loop(copy.rect.x, copy.rect.y, image.width, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
-    new_data[di] = image.data[si];
-  }
-  build_bitmap_from_pixels(&copy.bitmap, new_data, copy.rect.w, copy.rect.h, &rgba32);
-  copy.copying = 0;
-  if (copy.rect.h > 1 || copy.rect.w > 1) {
-    copy.pasting = 1;
-  }
-}
-
 void mouse_move(int state, int x, int y) {
   if (state & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
-    copy.end.x = x, copy.end.y = y;
+    drag_copy(x, y);
   } else if (state & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-    if (copy.pasting) {
+    if (pasting()) {
     } else {
       paint(x, y);
     }
@@ -284,23 +187,23 @@ void mouse_move(int state, int x, int y) {
 void zoom_in() {
   int x, y;
   SDL_GetWindowSize(win, &x, &y);
-  dest.y -= (y/2 - dest.y);
-  dest.x -= (x/2 - dest.x);
-  dest.h *= 2;
-  dest.w *= 2;
-  zoom *= 2;
+  view.translation.y -= (y/2 - view.translation.y);
+  view.translation.x -= (x/2 - view.translation.x);
+  view.translation.h *= 2;
+  view.translation.w *= 2;
+  view.scale *= 2;
   build_grid();
 }
 
 void zoom_out() {
-  if (zoom == 1) return;
+  if (view.scale == 1) return;
   int x, y;
   SDL_GetWindowSize(win, &x, &y);
-  dest.y += (y/2 - dest.y)/2;
-  dest.x += (x/2 - dest.x)/2;
-  dest.h /= 2;
-  dest.w /= 2;
-  zoom /= 2;
+  view.translation.y += (y/2 - view.translation.y)/2;
+  view.translation.x += (x/2 - view.translation.x)/2;
+  view.translation.h /= 2;
+  view.translation.w /= 2;
+  view.scale /= 2;
   build_grid();
 }
 
@@ -333,63 +236,11 @@ void start_undo_record() {
   varray_init(pixel_t, &undo->pixels, 8);
 }
 
-void snap_rect_to_block(SDL_Rect* rect, int zoom) {
-  int offsetx = dest.x % (zoom * BLOCK_SIZE);
-  int offsety = dest.y % (zoom * BLOCK_SIZE);
-  rect->x -= (rect->x - offsetx) % (zoom * BLOCK_SIZE);
-  rect->y -= (rect->y - offsety) % (zoom * BLOCK_SIZE);
-  rect->w -= rect->w % zoom * BLOCK_SIZE;
-  rect->h -= rect->h % zoom * BLOCK_SIZE;
-}
-
-void paste(int x, int y) {
-  translate_coord(x, y, &x, &y);
-  x -= x % BLOCK_SIZE;
-  y -= y % BLOCK_SIZE;
-  pixel_loop(0, 0, copy.rect.w, x, y, image.width, copy.rect.w, copy.rect.h) {
-    pixel_t pixel = { .index = di, .color = image.data[di] };
-    image.data[di] = copy.bitmap.data[si];
-    varray_push(pixel_t, &undo_head->pixels, pixel);
-  }
-  rebuild_bitmap(&image);
-}
-
-void end_paste() {
-  safe_free_bitmap(&copy.bitmap);
-  copy.pasting = 0;
-}
-
-void rotate_paste() {
-  unsigned int* rotated = malloc(copy.rect.w * copy.rect.h * 4);
-  rotate_clockwise(copy.bitmap.data, copy.rect.w, copy.rect.h, rotated);
-  free(copy.bitmap.data);
-  copy.bitmap.data = rotated;
-  int tmp = copy.rect.w;
-  copy.rect.w = copy.rect.h;
-  copy.rect.h = tmp;
-  rebuild_bitmap(&copy.bitmap);
-}
-
-void flip_horizontal() {
-  mirror_horizontal(copy.bitmap.data, copy.rect.w, copy.rect.h);
-  rebuild_bitmap(&copy.bitmap);
-}
-
-void flip_vertical() {
-  mirror_vertical(copy.bitmap.data, copy.rect.w, copy.rect.h);
-  rebuild_bitmap(&copy.bitmap);
-}
-
 void handle_event(SDL_Event* e) {
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
-      if (copy.pasting) {
-        if (e->key.keysym.sym == SDLK_r) rotate_paste();
-        if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
-        if (e->key.keysym.sym == SDLK_h) flip_horizontal();
-        if (e->key.keysym.sym == SDLK_v) flip_vertical();
-      }
+      handle_copy_paste_keys(e);
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
       if (e->key.keysym.sym == SDLK_MINUS) zoom_out();
       if (e->key.keysym.sym == SDLK_s) save();
@@ -405,8 +256,8 @@ void handle_event(SDL_Event* e) {
       mouse_move(state, x, y);
       break;
     case SDL_MOUSEWHEEL:
-      dest.x -= e->wheel.x*10;
-      dest.y += e->wheel.y*10;
+      view.translation.x -= e->wheel.x*10;
+      view.translation.y += e->wheel.y*10;
       break;
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
@@ -417,8 +268,8 @@ void handle_event(SDL_Event* e) {
           break;
         }
         start_undo_record();
-        if (copy.pasting) {
-          paste(e->button.x, e->button.y);
+        if (pasting()) {
+          paste(e->button.x, e->button.y, undo_head, &image);
         } else {
           paint(e->button.x, e->button.y);
         }
@@ -428,8 +279,8 @@ void handle_event(SDL_Event* e) {
       }
       break;
     case SDL_MOUSEBUTTONUP:
-      if (copy.copying) {
-        end_copy();
+      if (copying()) {
+        end_copy(&image);
       }
       break;
   }
@@ -437,15 +288,15 @@ void handle_event(SDL_Event* e) {
 
 void draw_grid() {
   if (!grid.on) return;
-  grid.dest.x = dest.x;
-  grid.dest.y = dest.y;
+  grid.dest.x = view.translation.x;
+  grid.dest.y = view.translation.y;
   for (int i = 0; i < image.height / MAJOR_BLOCK_SIZE; i++) {
     for (int j = 0; j < image.width / MAJOR_BLOCK_SIZE; j++) {
       SDL_RenderCopy(ren, grid.bitmap.tex, NULL, &grid.dest);
-      grid.dest.x += zoom * MAJOR_BLOCK_SIZE;
+      grid.dest.x += view.scale * MAJOR_BLOCK_SIZE;
     }
-    grid.dest.x = dest.x;
-    grid.dest.y += zoom * MAJOR_BLOCK_SIZE;
+    grid.dest.x = view.translation.x;
+    grid.dest.y += view.scale * MAJOR_BLOCK_SIZE;
   }
 }
 
@@ -519,6 +370,7 @@ void run_app(char* path, int width, int height) {
     exit(1);
   }
   set_bitmap_renderer(ren);
+  init_copy_paste(&view);
 
   int req_format = STBI_rgb_alpha;
   int orig_format;
@@ -542,15 +394,12 @@ void run_app(char* path, int width, int height) {
   image.data = NULL;
   palette.bitmap.data = NULL;
   grid.bitmap.data = NULL;
-  copy.bitmap.data = NULL;
   font.bitmap.data = NULL;
 
   build_bitmap_from_pixels(&image, data, width, height, &rgba32);
 
   build_grid();
   grid.on = 1;
-  copy.copying = 0;
-  copy.pasting = 0;
 
   build_bitmap_from_pixels(&palette.bitmap, (unsigned int*)pdata, 4, 16, &rgba32);
   palette.dest.y = 0;
@@ -559,10 +408,10 @@ void run_app(char* path, int width, int height) {
 
   int x, y;
   SDL_GetWindowSize(win, &x, &y);
-  dest.x = x / 2 - width / 2;
-  dest.y = y / 2 - height / 2;
-  dest.h = height;
-  dest.w = width;
+  view.translation.x = x / 2 - width / 2;
+  view.translation.y = y / 2 - height / 2;
+  view.translation.h = height;
+  view.translation.w = width;
 
   SDL_Event e;
   SDL_Rect clip = {
@@ -587,24 +436,8 @@ void run_app(char* path, int width, int height) {
   while (!quit) {
     SDL_SetRenderDrawColor(ren, 0, 0x2b, 0x36, 255);
     SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, image.tex, NULL, &dest);
-    if (copy.copying) {
-      SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
-      coords_to_rect(copy.start, copy.end, &copy.dest);
-      snap_rect_to_pixel(&copy.dest);
-      SDL_RenderFillRect(ren, &copy.dest);
-    }
-    if (copy.pasting) {
-      SDL_GetMouseState(&x, &y);
-      SDL_Rect dst = {
-        .x = x,
-        .y = y,
-        .w = copy.rect.w * zoom,
-        .h = copy.rect.h * zoom
-      };
-      snap_rect_to_block(&dst, zoom);
-      SDL_RenderCopy(ren, copy.bitmap.tex, NULL, &dst);
-    }
+    SDL_RenderCopy(ren, image.tex, NULL, &view.translation);
+    render_copy_paste(x, y, ren);
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;

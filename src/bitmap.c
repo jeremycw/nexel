@@ -1,6 +1,14 @@
 #include <SDL2/SDL.h>
 #include "bitmap.h"
 
+img_format_t rgba32 = {
+  .bpp = 32,
+  .rmask = RMASK,
+  .gmask = GMASK,
+  .bmask = BMASK,
+  .amask = AMASK,
+};
+
 SDL_Renderer* ren = NULL;
 
 void set_bitmap_renderer(SDL_Renderer* renderer) {

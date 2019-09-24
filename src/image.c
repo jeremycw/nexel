@@ -2,6 +2,13 @@
 #include <math.h>
 #include "image.h"
 
+varray_defn(pixel_t);
+
+void translate_coord(int x, int y, int* tx, int* ty, view_t* view) {
+  *tx = (x - view->translation.x) / view->scale; 
+  *ty = (y - view->translation.y) / view->scale;
+}
+
 void alpha_channel_to_rgba(unsigned char* in, unsigned int* out, int n, unsigned int rgb) {
   for (int i = 0; i < n; i++) {
     out[i] = (in[i] << 24) | rgb;
