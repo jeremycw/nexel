@@ -3,6 +3,8 @@
 
 #include "image.h"
 
+enum { CP_NONE, CP_PASTING, CP_COPYING };
+
 void copy_paste_init(view_t* v);
 int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image);
 void copy_paste_render(int x, int y, SDL_Renderer* ren);

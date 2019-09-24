@@ -227,7 +227,7 @@ void start_undo_record() {
 
 void handle_event(SDL_Event* e) {
   int x, y, state;
-  int pasting = copy_paste_handle_events(e, undo_head, &image);
+  int cp_state = copy_paste_handle_events(e, undo_head, &image);
   switch (e->type) {
     case SDL_KEYDOWN:
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
@@ -242,7 +242,7 @@ void handle_event(SDL_Event* e) {
       break;
     case SDL_MOUSEMOTION:
       state = SDL_GetMouseState(&x, &y);
-      if (state & SDL_BUTTON(SDL_BUTTON_LEFT) && !pasting) {
+      if (state & SDL_BUTTON(SDL_BUTTON_LEFT) && cp_state != CP_PASTING) {
         paint(x, y);
       }
       break;
@@ -259,7 +259,7 @@ void handle_event(SDL_Event* e) {
           break;
         }
         start_undo_record();
-        if (!pasting) {
+        if (cp_state != CP_PASTING) {
           paint(e->button.x, e->button.y);
         }
       } else if (e->button.button == SDL_BUTTON_RIGHT) {

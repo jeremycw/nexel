@@ -126,7 +126,7 @@ void paste(int x, int y, undo_t* undo_head, bitmap_t* image) {
 }
 
 int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
-  if (!(copy.pasting || copy.copying)) return 0;
+  if (!(copy.pasting || copy.copying)) return CP_NONE;
 
   int x, y, state;
   switch (e->type) {
@@ -156,7 +156,7 @@ int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
       }
       break;
   }
-  return copy.pasting;
+  return copy.pasting ? CP_PASTING : CP_COPYING;
 }
 
 void copy_paste_render(int x, int y, SDL_Renderer* ren) {
