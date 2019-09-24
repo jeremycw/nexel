@@ -44,7 +44,7 @@ void flip_vertical() {
   rebuild_bitmap(&copy.bitmap);
 }
 
-void init_copy_paste(view_t* v) {
+void copy_paste_init(view_t* v) {
   view = v;
   copy.bitmap.data = NULL;
   copy.copying = 0;
@@ -125,7 +125,7 @@ void paste(int x, int y, undo_t* undo_head, bitmap_t* image) {
   rebuild_bitmap(image);
 }
 
-int handle_copy_paste_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
+int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
   if (!(copy.pasting || copy.copying)) return 0;
 
   int x, y, state;
@@ -159,7 +159,7 @@ int handle_copy_paste_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
   return copy.pasting;
 }
 
-void render_copy_paste(int x, int y, SDL_Renderer* ren) {
+void copy_paste_render(int x, int y, SDL_Renderer* ren) {
   if (copy.copying) {
     SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
     coords_to_rect(copy.start, copy.end, &copy.dest);

@@ -227,7 +227,7 @@ void start_undo_record() {
 
 void handle_event(SDL_Event* e) {
   int x, y, state;
-  int pasting = handle_copy_paste_events(e, undo_head, &image);
+  int pasting = copy_paste_handle_events(e, undo_head, &image);
   switch (e->type) {
     case SDL_KEYDOWN:
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
@@ -354,7 +354,7 @@ void run_app(char* path, int width, int height) {
     exit(1);
   }
   set_bitmap_renderer(ren);
-  init_copy_paste(&view);
+  copy_paste_init(&view);
 
   int req_format = STBI_rgb_alpha;
   int orig_format;
@@ -421,7 +421,7 @@ void run_app(char* path, int width, int height) {
     SDL_SetRenderDrawColor(ren, 0, 0x2b, 0x36, 255);
     SDL_RenderClear(ren);
     SDL_RenderCopy(ren, image.tex, NULL, &view.translation);
-    render_copy_paste(x, y, ren);
+    copy_paste_render(x, y, ren);
     draw_grid();
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
