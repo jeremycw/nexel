@@ -44,27 +44,6 @@ void flip_vertical() {
   rebuild_bitmap(&copy.bitmap);
 }
 
-int pasting() {
-  return copy.pasting;
-}
-
-int copying() {
-  return copy.copying;
-}
-
-void drag_copy(int x, int y) {
-  copy.end.x = x, copy.end.y = y;
-}
-
-void handle_copy_paste_keys(SDL_Event* e) {
-  if (copy.pasting) {
-    if (e->key.keysym.sym == SDLK_r) rotate_paste();
-    if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
-    if (e->key.keysym.sym == SDLK_h) flip_horizontal();
-    if (e->key.keysym.sym == SDLK_v) flip_vertical();
-  }
-}
-
 void init_copy_paste(view_t* v) {
   view = v;
   copy.bitmap.data = NULL;
@@ -144,6 +123,40 @@ void paste(int x, int y, undo_t* undo_head, bitmap_t* image) {
     varray_push(pixel_t, &undo_head->pixels, pixel);
   }
   rebuild_bitmap(image);
+}
+
+int handle_copy_paste_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
+  if (!(copy.pasting || copy.copying)) return 0;
+
+  int x, y, state;
+  switch (e->type) {
+    case SDL_KEYDOWN:
+      if (copy.pasting) {
+        if (e->key.keysym.sym == SDLK_r) rotate_paste();
+        if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
+        if (e->key.keysym.sym == SDLK_h) flip_horizontal();
+        if (e->key.keysym.sym == SDLK_v) flip_vertical();
+      }
+    case SDL_MOUSEBUTTONDOWN:
+      if (e->button.button == SDL_BUTTON_LEFT) {
+        if (copy.pasting) paste(e->button.x, e->button.y, undo_head, image);
+      } else if (e->button.button == SDL_BUTTON_RIGHT) {
+        start_copy(e->button.x, e->button.y);
+      }
+      break;
+    case SDL_MOUSEMOTION:
+      state = SDL_GetMouseState(&x, &y);
+      if (state & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
+        copy.end.x = x, copy.end.y = y;
+      }
+      break;
+    case SDL_MOUSEBUTTONUP:
+      if (copy.copying) {
+        end_copy(image);
+      }
+      break;
+  }
+  return copy.pasting;
 }
 
 void render_copy_paste(int x, int y, SDL_Renderer* ren) {

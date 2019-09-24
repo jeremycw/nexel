@@ -173,17 +173,6 @@ void print_rect(char* name, SDL_Rect* rect) {
   printf("%s: [(%d, %d), (%d, %d)]\n", name, rect->x, rect->y, rect->w, rect->h);
 }
 
-void mouse_move(int state, int x, int y) {
-  if (state & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
-    drag_copy(x, y);
-  } else if (state & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-    if (pasting()) {
-    } else {
-      paint(x, y);
-    }
-  }
-}
-
 void zoom_in() {
   int x, y;
   SDL_GetWindowSize(win, &x, &y);
@@ -238,9 +227,9 @@ void start_undo_record() {
 
 void handle_event(SDL_Event* e) {
   int x, y, state;
+  int pasting = handle_copy_paste_events(e, undo_head, &image);
   switch (e->type) {
     case SDL_KEYDOWN:
-      handle_copy_paste_keys(e);
       if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
       if (e->key.keysym.sym == SDLK_MINUS) zoom_out();
       if (e->key.keysym.sym == SDLK_s) save();
@@ -253,7 +242,9 @@ void handle_event(SDL_Event* e) {
       break;
     case SDL_MOUSEMOTION:
       state = SDL_GetMouseState(&x, &y);
-      mouse_move(state, x, y);
+      if (state & SDL_BUTTON(SDL_BUTTON_LEFT) && !pasting) {
+        paint(x, y);
+      }
       break;
     case SDL_MOUSEWHEEL:
       view.translation.x -= e->wheel.x*10;
@@ -268,19 +259,11 @@ void handle_event(SDL_Event* e) {
           break;
         }
         start_undo_record();
-        if (pasting()) {
-          paste(e->button.x, e->button.y, undo_head, &image);
-        } else {
+        if (!pasting) {
           paint(e->button.x, e->button.y);
         }
       } else if (e->button.button == SDL_BUTTON_RIGHT) {
-        start_copy(e->button.x, e->button.y);
         pick_color(e->button.x, e->button.y);
-      }
-      break;
-    case SDL_MOUSEBUTTONUP:
-      if (copying()) {
-        end_copy(&image);
       }
       break;
   }
