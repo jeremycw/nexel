@@ -7,6 +7,7 @@
 #include "roboto.h"
 #include "nes.h"
 #include "threads.h"
+#include "bitmap.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -21,24 +22,6 @@
 
 #define BLOCK_SIZE 8
 #define MAJOR_BLOCK_SIZE 16
-
-typedef struct {
-  int bpp;
-  int rmask;
-  int gmask;
-  int bmask;
-  int amask;
-} img_format_t;
-
-typedef struct {
-  SDL_Surface* surf;
-  SDL_Texture* tex;
-  unsigned int* data;
-  int width;
-  int height;
-  int pitch;
-  img_format_t* format;
-} bitmap_t;
 
 typedef struct {
   bitmap_t bitmap;
@@ -176,40 +159,6 @@ font_t font;
 char* status;
 
 threadpool global_thread_pool = NULL;
-
-void safe_free_bitmap(bitmap_t* bitmap) {
-  if (bitmap->data) {
-    free(bitmap->data);
-    bitmap->data = NULL;
-    SDL_FreeSurface(bitmap->surf);
-    SDL_DestroyTexture(bitmap->tex);
-  }
-}
-
-void build_bitmap(bitmap_t* bitmap) {
-  bitmap->surf = SDL_CreateRGBSurfaceFrom(
-    (void*)bitmap->data, bitmap->width, bitmap->height,
-    bitmap->format->bpp, bitmap->pitch, bitmap->format->rmask,
-    bitmap->format->gmask, bitmap->format->bmask, bitmap->format->amask
-  );
-  bitmap->tex = SDL_CreateTextureFromSurface(ren, bitmap->surf);
-}
-
-void rebuild_bitmap(bitmap_t* bitmap) {
-  SDL_FreeSurface(bitmap->surf);
-  SDL_DestroyTexture(bitmap->tex);
-  build_bitmap(bitmap);
-}
-
-void build_bitmap_from_pixels(bitmap_t* bitmap, unsigned int* data, int w, int h, img_format_t* format) {
-  safe_free_bitmap(bitmap);
-  bitmap->width = w;
-  bitmap->height = h;
-  bitmap->pitch = w * (format->bpp / 8);
-  bitmap->data = data;
-  bitmap->format = format;
-  build_bitmap(bitmap);
-}
 
 void translate_coord(int x, int y, int* tx, int* ty) {
   *tx = (x - dest.x) / zoom; 
@@ -569,6 +518,7 @@ void run_app(char* path, int width, int height) {
     printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
     exit(1);
   }
+  set_bitmap_renderer(ren);
 
   int req_format = STBI_rgb_alpha;
   int orig_format;

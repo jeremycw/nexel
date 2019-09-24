@@ -1,4 +1,4 @@
-SOURCES=app.c image.c nes.c thpool.c pipe.c
+SOURCES=app.c image.c nes.c thpool.c pipe.c bitmap.c
 TEST_SRCS=image_test.c nes_test.c pipe_test.c
 BINARY_NAME=nexel
 LFLAGS+=-lsdl2
