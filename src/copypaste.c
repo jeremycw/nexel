@@ -9,8 +9,7 @@ typedef struct {
   SDL_Rect dest;
   SDL_Point start;
   SDL_Point end;
-  int copying;
-  int pasting;
+  int state;
   bitmap_t bitmap;
 } copy_t;
 
@@ -20,7 +19,7 @@ static view_t* view;
 
 void end_paste() {
   bitmap_safe_free(&copy.bitmap);
-  copy.pasting = 0;
+  copy.state = CP_NONE;
 }
 
 void rotate_paste() {
@@ -47,8 +46,7 @@ void flip_vertical() {
 void copy_paste_init(view_t* v) {
   view = v;
   copy.bitmap.data = NULL;
-  copy.copying = 0;
-  copy.pasting = 0;
+  copy.state = CP_NONE;
 }
 
 void snap_rect_to_block(SDL_Rect* rect) {
@@ -61,7 +59,7 @@ void snap_rect_to_block(SDL_Rect* rect) {
 }
 
 void start_copy(int x, int y) {
-  copy.copying = 1;
+  copy.state = CP_COPYING;
   copy.start.x = x;
   copy.start.y = y;
   copy.end.x = x;
@@ -107,9 +105,9 @@ void end_copy(bitmap_t* image) {
     new_data[di] = image->data[si];
   }
   bitmap_build_from_pixels(&copy.bitmap, new_data, copy.rect.w, copy.rect.h, &rgba32);
-  copy.copying = 0;
+  copy.state = CP_NONE;
   if (copy.rect.h > 1 || copy.rect.w > 1) {
-    copy.pasting = 1;
+    copy.state = CP_PASTING;
   }
 }
 
@@ -126,12 +124,10 @@ void paste(int x, int y, undo_t* undo_head, bitmap_t* image) {
 }
 
 int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
-  if (!(copy.pasting || copy.copying)) return CP_NONE;
-
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
-      if (copy.pasting) {
+      if (copy.state == CP_PASTING) {
         if (e->key.keysym.sym == SDLK_r) rotate_paste();
         if (e->key.keysym.sym == SDLK_ESCAPE) end_paste();
         if (e->key.keysym.sym == SDLK_h) flip_horizontal();
@@ -139,7 +135,7 @@ int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
       }
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
-        if (copy.pasting) paste(e->button.x, e->button.y, undo_head, image);
+        if (copy.state == CP_PASTING) paste(e->button.x, e->button.y, undo_head, image);
       } else if (e->button.button == SDL_BUTTON_RIGHT) {
         start_copy(e->button.x, e->button.y);
       }
@@ -151,22 +147,22 @@ int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
       }
       break;
     case SDL_MOUSEBUTTONUP:
-      if (copy.copying) {
+      if (copy.state == CP_COPYING) {
         end_copy(image);
       }
       break;
   }
-  return copy.pasting ? CP_PASTING : CP_COPYING;
+  return copy.state;
 }
 
 void copy_paste_render(int x, int y, SDL_Renderer* ren) {
-  if (copy.copying) {
+  if (copy.state == CP_COPYING) {
     SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
     coords_to_rect(copy.start, copy.end, &copy.dest);
     snap_rect_to_pixel(&copy.dest);
     SDL_RenderFillRect(ren, &copy.dest);
   }
-  if (copy.pasting) {
+  if (copy.state == CP_PASTING) {
     SDL_GetMouseState(&x, &y);
     SDL_Rect dst = {
       .x = x,
