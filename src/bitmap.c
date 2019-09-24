@@ -9,7 +9,7 @@ img_format_t rgba32 = {
   .amask = AMASK,
 };
 
-SDL_Renderer* ren = NULL;
+static SDL_Renderer* ren = NULL;
 
 void set_bitmap_renderer(SDL_Renderer* renderer) {
   ren = renderer;

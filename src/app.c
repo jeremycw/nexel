@@ -100,24 +100,24 @@ unsigned char pdata[] = {
   0,0,0,255,
 };
 
-view_t view;
+static view_t view;
 
-undo_t* undo_head = NULL;
+static undo_t* undo_head = NULL;
 
-int quit = 0;
-int color = 0xffffffff;
+static int quit = 0;
+static int color = 0xffffffff;
 
-char* filename;
-SDL_Window* win;
-SDL_Renderer* ren;
+static char* filename;
+static SDL_Window* win;
+static SDL_Renderer* ren;
 
-bitmap_t image;
+static bitmap_t image;
 
-grid_t grid;
-palette_t palette;
+static grid_t grid;
+static palette_t palette;
 
-font_t font;
-char* status;
+static font_t font;
+static char* status;
 
 threadpool global_thread_pool = NULL;
 
@@ -350,6 +350,7 @@ void draw_status_line() {
 void run_app(char* path, int width, int height) {
   status = path;
   filename = path;
+  view.scale = 1;
 
   global_thread_pool = thpool_init(GLOBAL_THREAD_POOL_SIZE);
 

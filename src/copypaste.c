@@ -14,9 +14,9 @@ typedef struct {
   bitmap_t bitmap;
 } copy_t;
 
-copy_t copy;
+static copy_t copy;
 
-view_t* view;
+static view_t* view;
 
 void end_paste() {
   safe_free_bitmap(&copy.bitmap);
