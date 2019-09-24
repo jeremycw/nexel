@@ -11,11 +11,11 @@ img_format_t rgba32 = {
 
 static SDL_Renderer* ren = NULL;
 
-void set_bitmap_renderer(SDL_Renderer* renderer) {
+void bitmap_set_renderer(SDL_Renderer* renderer) {
   ren = renderer;
 }
 
-void safe_free_bitmap(bitmap_t* bitmap) {
+void bitmap_safe_free(bitmap_t* bitmap) {
   if (bitmap->data) {
     free(bitmap->data);
     bitmap->data = NULL;
@@ -24,7 +24,7 @@ void safe_free_bitmap(bitmap_t* bitmap) {
   }
 }
 
-void build_bitmap(bitmap_t* bitmap) {
+void bitmap_build(bitmap_t* bitmap) {
   bitmap->surf = SDL_CreateRGBSurfaceFrom(
     (void*)bitmap->data, bitmap->width, bitmap->height,
     bitmap->format->bpp, bitmap->pitch, bitmap->format->rmask,
@@ -33,19 +33,19 @@ void build_bitmap(bitmap_t* bitmap) {
   bitmap->tex = SDL_CreateTextureFromSurface(ren, bitmap->surf);
 }
 
-void rebuild_bitmap(bitmap_t* bitmap) {
+void bitmap_rebuild(bitmap_t* bitmap) {
   SDL_FreeSurface(bitmap->surf);
   SDL_DestroyTexture(bitmap->tex);
-  build_bitmap(bitmap);
+  bitmap_build(bitmap);
 }
 
-void build_bitmap_from_pixels(bitmap_t* bitmap, unsigned int* data, int w, int h, img_format_t* format) {
-  safe_free_bitmap(bitmap);
+void bitmap_build_from_pixels(bitmap_t* bitmap, unsigned int* data, int w, int h, img_format_t* format) {
+  bitmap_safe_free(bitmap);
   bitmap->width = w;
   bitmap->height = h;
   bitmap->pitch = w * (format->bpp / 8);
   bitmap->data = data;
   bitmap->format = format;
-  build_bitmap(bitmap);
+  bitmap_build(bitmap);
 }
 

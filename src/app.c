@@ -140,7 +140,7 @@ unsigned int* create_grid_tile(int size) {
 void build_grid() {
   unsigned int* data = create_grid_tile(view.scale * MAJOR_BLOCK_SIZE);
   int size = MAJOR_BLOCK_SIZE * view.scale;
-  build_bitmap_from_pixels(&grid.bitmap, data, size, size, &rgba32);
+  bitmap_build_from_pixels(&grid.bitmap, data, size, size, &rgba32);
   grid.dest.h = MAJOR_BLOCK_SIZE * view.scale;
   grid.dest.w = MAJOR_BLOCK_SIZE * view.scale;
 }
@@ -160,7 +160,7 @@ void paint(int x, int y) {
   }
   if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
   image.data[index] = color;
-  rebuild_bitmap(&image);
+  bitmap_rebuild(&image);
 }
 
 void pick_color(int x, int y) {
@@ -210,7 +210,7 @@ void undo() {
   free(tmp->pixels.buf);
   undo_head = tmp->next;
   free(tmp);
-  rebuild_bitmap(&image);
+  bitmap_rebuild(&image);
 }
 
 int in_bounds(SDL_Rect* rect, int x, int y) {
@@ -353,7 +353,7 @@ void run_app(char* path, int width, int height) {
     printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
     exit(1);
   }
-  set_bitmap_renderer(ren);
+  bitmap_set_renderer(ren);
   copy_paste_init(&view);
 
   int req_format = STBI_rgb_alpha;
@@ -380,12 +380,12 @@ void run_app(char* path, int width, int height) {
   grid.bitmap.data = NULL;
   font.bitmap.data = NULL;
 
-  build_bitmap_from_pixels(&image, data, width, height, &rgba32);
+  bitmap_build_from_pixels(&image, data, width, height, &rgba32);
 
   build_grid();
   grid.on = 1;
 
-  build_bitmap_from_pixels(&palette.bitmap, (unsigned int*)pdata, 4, 16, &rgba32);
+  bitmap_build_from_pixels(&palette.bitmap, (unsigned int*)pdata, 4, 16, &rgba32);
   palette.dest.y = 0;
   palette.dest.h = 16 * 16;
   palette.dest.w = 4 * 16;
@@ -413,7 +413,7 @@ void run_app(char* path, int width, int height) {
 
   unsigned int* bmp = malloc(128 * 96 * sizeof(unsigned int));
   alpha_channel_to_rgba(font.alpha, bmp, 128*96, 0xa1a193);
-  build_bitmap_from_pixels(&font.bitmap, bmp, 128, 96, &rgba32);
+  bitmap_build_from_pixels(&font.bitmap, bmp, 128, 96, &rgba32);
 
   SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 

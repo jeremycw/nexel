@@ -19,7 +19,7 @@ static copy_t copy;
 static view_t* view;
 
 void end_paste() {
-  safe_free_bitmap(&copy.bitmap);
+  bitmap_safe_free(&copy.bitmap);
   copy.pasting = 0;
 }
 
@@ -31,17 +31,17 @@ void rotate_paste() {
   int tmp = copy.rect.w;
   copy.rect.w = copy.rect.h;
   copy.rect.h = tmp;
-  rebuild_bitmap(&copy.bitmap);
+  bitmap_rebuild(&copy.bitmap);
 }
 
 void flip_horizontal() {
   mirror_horizontal(copy.bitmap.data, copy.rect.w, copy.rect.h);
-  rebuild_bitmap(&copy.bitmap);
+  bitmap_rebuild(&copy.bitmap);
 }
 
 void flip_vertical() {
   mirror_vertical(copy.bitmap.data, copy.rect.w, copy.rect.h);
-  rebuild_bitmap(&copy.bitmap);
+  bitmap_rebuild(&copy.bitmap);
 }
 
 void copy_paste_init(view_t* v) {
@@ -106,7 +106,7 @@ void end_copy(bitmap_t* image) {
   pixel_loop(copy.rect.x, copy.rect.y, image->width, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
     new_data[di] = image->data[si];
   }
-  build_bitmap_from_pixels(&copy.bitmap, new_data, copy.rect.w, copy.rect.h, &rgba32);
+  bitmap_build_from_pixels(&copy.bitmap, new_data, copy.rect.w, copy.rect.h, &rgba32);
   copy.copying = 0;
   if (copy.rect.h > 1 || copy.rect.w > 1) {
     copy.pasting = 1;
@@ -122,7 +122,7 @@ void paste(int x, int y, undo_t* undo_head, bitmap_t* image) {
     image->data[di] = copy.bitmap.data[si];
     varray_push(pixel_t, &undo_head->pixels, pixel);
   }
-  rebuild_bitmap(image);
+  bitmap_rebuild(image);
 }
 
 int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
