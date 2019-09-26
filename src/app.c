@@ -288,12 +288,12 @@ void run_app(char* path, int width, int height) {
 
   int x, y;
   while (!quit) {
-    SDL_GetWindowSize(win, &x, &y);
     image_draw(ren);
-    copy_paste_render(x, y, ren);
+    copy_paste_render(ren);
     image_info_t info;
     image_info(&info);
     draw_grid(info);
+    SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
     clip.h = y;
     SDL_SetRenderDrawColor(ren, 0x07, 0x36, 0x42, 255);

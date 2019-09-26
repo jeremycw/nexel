@@ -134,7 +134,7 @@ int copy_paste_handle_events(SDL_Event* e) {
   return copy.state;
 }
 
-void copy_paste_render(int x, int y, SDL_Renderer* ren) {
+void copy_paste_render(SDL_Renderer* ren) {
   if (copy.state == CP_COPYING) {
     SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
     coords_to_rect(copy.start, copy.end, &copy.dest);
@@ -142,6 +142,7 @@ void copy_paste_render(int x, int y, SDL_Renderer* ren) {
     SDL_RenderFillRect(ren, &copy.dest);
   }
   if (copy.state == CP_PASTING) {
+    int x, y;
     SDL_GetMouseState(&x, &y);
     SDL_Rect dst = {
       .x = x,
