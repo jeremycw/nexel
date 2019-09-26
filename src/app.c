@@ -252,7 +252,6 @@ void run_app(char* path, int width, int height) {
   }
   bitmap_set_renderer(ren);
   image_init(path, win, width, height);
-  copy_paste_init();
 
   palette.bitmap.data = NULL;
   grid.bitmap.data = NULL;

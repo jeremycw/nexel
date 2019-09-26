@@ -14,7 +14,7 @@ typedef struct {
   bitmap_t bitmap;
 } copy_t;
 
-static copy_t copy;
+static copy_t copy = {};
 
 void end_paste() {
   bitmap_safe_free(&copy.bitmap);
@@ -40,11 +40,6 @@ void flip_horizontal() {
 void flip_vertical() {
   raw_mirror_vertical(copy.bitmap.data, copy.rect.w, copy.rect.h);
   bitmap_rebuild(&copy.bitmap);
-}
-
-void copy_paste_init() {
-  copy.bitmap.data = NULL;
-  copy.state = CP_NONE;
 }
 
 void start_copy(int x, int y) {
