@@ -1,8 +1,9 @@
 #include <SDL2/SDL.h>
 #include "bitmap.h"
-#include "copypaste.h"
 #include "image.h"
 #include "varray.h"
+#include "raw.h"
+#include "copypaste.h"
 
 typedef struct {
   SDL_Rect rect;
@@ -15,8 +16,6 @@ typedef struct {
 
 static copy_t copy;
 
-static view_t* view;
-
 void end_paste() {
   bitmap_safe_free(&copy.bitmap);
   copy.state = CP_NONE;
@@ -24,7 +23,7 @@ void end_paste() {
 
 void rotate_paste() {
   unsigned int* rotated = malloc(copy.rect.w * copy.rect.h * 4);
-  rotate_clockwise(copy.bitmap.data, copy.rect.w, copy.rect.h, rotated);
+  raw_rotate_clockwise(copy.bitmap.data, copy.rect.w, copy.rect.h, rotated);
   free(copy.bitmap.data);
   copy.bitmap.data = rotated;
   int tmp = copy.rect.w;
@@ -34,28 +33,18 @@ void rotate_paste() {
 }
 
 void flip_horizontal() {
-  mirror_horizontal(copy.bitmap.data, copy.rect.w, copy.rect.h);
+  raw_mirror_horizontal(copy.bitmap.data, copy.rect.w, copy.rect.h);
   bitmap_rebuild(&copy.bitmap);
 }
 
 void flip_vertical() {
-  mirror_vertical(copy.bitmap.data, copy.rect.w, copy.rect.h);
+  raw_mirror_vertical(copy.bitmap.data, copy.rect.w, copy.rect.h);
   bitmap_rebuild(&copy.bitmap);
 }
 
-void copy_paste_init(view_t* v) {
-  view = v;
+void copy_paste_init() {
   copy.bitmap.data = NULL;
   copy.state = CP_NONE;
-}
-
-void snap_rect_to_block(SDL_Rect* rect) {
-  int offsetx = view->translation.x % (view->scale * BLOCK_SIZE);
-  int offsety = view->translation.y % (view->scale * BLOCK_SIZE);
-  rect->x -= (rect->x - offsetx) % (view->scale * BLOCK_SIZE);
-  rect->y -= (rect->y - offsety) % (view->scale * BLOCK_SIZE);
-  rect->w -= rect->w % view->scale * BLOCK_SIZE;
-  rect->h -= rect->h % view->scale * BLOCK_SIZE;
 }
 
 void start_copy(int x, int y) {
@@ -64,15 +53,6 @@ void start_copy(int x, int y) {
   copy.start.y = y;
   copy.end.x = x;
   copy.end.y = y;
-}
-
-void snap_rect_to_pixel(SDL_Rect* rect) {
-  int offsetx = view->translation.x % view->scale;
-  int offsety = view->translation.y % view->scale;
-  rect->x -= (rect->x - offsetx) % view->scale;
-  rect->y -= (rect->y - offsety) % view->scale;
-  rect->w -= rect->w % view->scale;
-  rect->h -= rect->h % view->scale;
 }
 
 void coords_to_rect(SDL_Point start, SDL_Point end, SDL_Rect* rect) {
@@ -94,15 +74,15 @@ void coords_to_rect(SDL_Point start, SDL_Point end, SDL_Rect* rect) {
   }
 }
 
-void end_copy(bitmap_t* image) {
+void end_copy() {
   coords_to_rect(copy.start, copy.end, &copy.rect);
-  snap_rect_to_pixel(&copy.rect);
-  translate_coord(copy.rect.x, copy.rect.y, &copy.rect.x, &copy.rect.y, view);
-  copy.rect.w /= view->scale;
-  copy.rect.h /= view->scale;
+  image_snap_rect_to_pixel(&copy.rect);
+  image_translate_coord(copy.rect.x, copy.rect.y, &copy.rect.x, &copy.rect.y);
+  image_descale_rect(&copy.rect);
   unsigned int* new_data = malloc(4 * copy.rect.w * copy.rect.h);
-  pixel_loop(copy.rect.x, copy.rect.y, image->width, 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
-    new_data[di] = image->data[si];
+  unsigned int const * data = image_raw();
+  pixel_loop(copy.rect.x, copy.rect.y, image_pitch(), 0, 0, copy.rect.w, copy.rect.w, copy.rect.h) {
+    new_data[di] = data[si];
   }
   bitmap_build_from_pixels(&copy.bitmap, new_data, copy.rect.w, copy.rect.h, &rgba32);
   copy.state = CP_NONE;
@@ -111,19 +91,18 @@ void end_copy(bitmap_t* image) {
   }
 }
 
-void paste(int x, int y, undo_t* undo_head, bitmap_t* image) {
-  translate_coord(x, y, &x, &y, view);
+void paste(int x, int y) {
+  image_begin_undo_recording();
+  image_translate_coord(x, y, &x, &y);
   x -= x % BLOCK_SIZE;
   y -= y % BLOCK_SIZE;
-  pixel_loop(0, 0, copy.rect.w, x, y, image->width, copy.rect.w, copy.rect.h) {
-    pixel_t pixel = { .index = di, .color = image->data[di] };
-    image->data[di] = copy.bitmap.data[si];
-    varray_push(pixel_t, &undo_head->pixels, pixel);
+  pixel_loop(0, 0, copy.rect.w, x, y, image_pitch(), copy.rect.w, copy.rect.h) {
+    image_undoable_write(di, copy.bitmap.data[si]);
   }
-  bitmap_rebuild(image);
+  image_refresh();
 }
 
-int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
+int copy_paste_handle_events(SDL_Event* e) {
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
@@ -135,7 +114,7 @@ int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
       }
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
-        if (copy.state == CP_PASTING) paste(e->button.x, e->button.y, undo_head, image);
+        if (copy.state == CP_PASTING) paste(e->button.x, e->button.y);
       } else if (e->button.button == SDL_BUTTON_RIGHT) {
         start_copy(e->button.x, e->button.y);
       }
@@ -148,7 +127,7 @@ int copy_paste_handle_events(SDL_Event* e, undo_t* undo_head, bitmap_t* image) {
       break;
     case SDL_MOUSEBUTTONUP:
       if (copy.state == CP_COPYING) {
-        end_copy(image);
+        end_copy();
       }
       break;
   }
@@ -159,7 +138,7 @@ void copy_paste_render(int x, int y, SDL_Renderer* ren) {
   if (copy.state == CP_COPYING) {
     SDL_SetRenderDrawColor(ren, 0, 0, 255, 100);
     coords_to_rect(copy.start, copy.end, &copy.dest);
-    snap_rect_to_pixel(&copy.dest);
+    image_snap_rect_to_pixel(&copy.dest);
     SDL_RenderFillRect(ren, &copy.dest);
   }
   if (copy.state == CP_PASTING) {
@@ -167,10 +146,11 @@ void copy_paste_render(int x, int y, SDL_Renderer* ren) {
     SDL_Rect dst = {
       .x = x,
       .y = y,
-      .w = copy.rect.w * view->scale,
-      .h = copy.rect.h * view->scale
+      .w = copy.rect.w,
+      .h = copy.rect.h
     };
-    snap_rect_to_block(&dst);
+    image_scale_rect(&dst);
+    image_snap_rect_to_block(&dst);
     SDL_RenderCopy(ren, copy.bitmap.tex, NULL, &dst);
   }
 }

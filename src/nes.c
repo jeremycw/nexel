@@ -1,9 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "varray.h"
-#include "image.h"
 #include "parallel_map.h"
 #include "threads.h"
+#include "raw.h"
 #include "nes.h"
 
 parallel_map_declare(uint32_t);

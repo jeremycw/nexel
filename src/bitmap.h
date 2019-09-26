@@ -1,6 +1,8 @@
 #ifndef BITMAP_H
 #define BITMAP_H
 
+#include <SDL2/SDL.h>
+
 #define RMASK 0x000000ff
 #define GMASK 0x0000ff00
 #define BMASK 0x00ff0000

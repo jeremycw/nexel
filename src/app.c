@@ -1,18 +1,13 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include "varray.h"
 #include "image.h"
+#include "raw.h"
 #include "roboto.h"
 #include "nes.h"
 #include "threads.h"
 #include "bitmap.h"
 #include "copypaste.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
@@ -100,18 +95,11 @@ unsigned char pdata[] = {
   0,0,0,255,
 };
 
-static view_t view;
-
-static undo_t* undo_head = NULL;
-
 static int quit = 0;
-static int color = 0xffffffff;
 
 static char* filename;
 static SDL_Window* win;
 static SDL_Renderer* ren;
-
-static bitmap_t image;
 
 static grid_t grid;
 static palette_t palette;
@@ -137,80 +125,16 @@ unsigned int* create_grid_tile(int size) {
   return data;
 }
 
-void build_grid() {
-  unsigned int* data = create_grid_tile(view.scale * MAJOR_BLOCK_SIZE);
-  int size = MAJOR_BLOCK_SIZE * view.scale;
+void build_grid(int scale) {
+  unsigned int* data = create_grid_tile(scale * MAJOR_BLOCK_SIZE);
+  int size = MAJOR_BLOCK_SIZE * scale;
   bitmap_build_from_pixels(&grid.bitmap, data, size, size, &rgba32);
-  grid.dest.h = MAJOR_BLOCK_SIZE * view.scale;
-  grid.dest.w = MAJOR_BLOCK_SIZE * view.scale;
-}
-
-void paint(int x, int y) {
-  int tx, ty;
-  translate_coord(x, y, &tx, &ty, &view);
-  int index = ty * image.width + tx;
-  pixel_t pixel = {
-    .index = index,
-    .color = image.data[index]
-  };
-  varray_t(pixel_t) px = undo_head->pixels;
-  int push = 1;
-  for (int i = 0; i < px.size; i++) {
-    if (px.buf[i].index == pixel.index) push = 0;
-  }
-  if (push) varray_push(pixel_t, &undo_head->pixels, pixel);
-  image.data[index] = color;
-  bitmap_rebuild(&image);
-}
-
-void pick_color(int x, int y) {
-  int tx, ty;
-  translate_coord(x, y, &tx, &ty, &view);
-  color = image.data[ty * image.width + tx];
+  grid.dest.h = MAJOR_BLOCK_SIZE * scale;
+  grid.dest.w = MAJOR_BLOCK_SIZE * scale;
 }
 
 void print_rect(char* name, SDL_Rect* rect) {
   printf("%s: [(%d, %d), (%d, %d)]\n", name, rect->x, rect->y, rect->w, rect->h);
-}
-
-void zoom_in() {
-  int x, y;
-  SDL_GetWindowSize(win, &x, &y);
-  view.translation.y -= (y/2 - view.translation.y);
-  view.translation.x -= (x/2 - view.translation.x);
-  view.translation.h *= 2;
-  view.translation.w *= 2;
-  view.scale *= 2;
-  build_grid();
-}
-
-void zoom_out() {
-  if (view.scale == 1) return;
-  int x, y;
-  SDL_GetWindowSize(win, &x, &y);
-  view.translation.y += (y/2 - view.translation.y)/2;
-  view.translation.x += (x/2 - view.translation.x)/2;
-  view.translation.h /= 2;
-  view.translation.w /= 2;
-  view.scale /= 2;
-  build_grid();
-}
-
-void save() {
-  stbi_write_png(filename, image.width, image.height, 4, (unsigned char*)image.data, image.pitch);
-}
-
-void undo() {
-  if (undo_head == NULL) return;
-  for (int i = 0; i < undo_head->pixels.size; i++) {
-    pixel_t pixel = undo_head->pixels.buf[i];
-    image.data[pixel.index] = pixel.color;
-  }
-  undo_t* tmp = undo_head;
-  free(tmp->pixels.buf);
-  undo_head = tmp->next;
-  free(tmp);
-  bitmap_rebuild(&image);
 }
 
 int in_bounds(SDL_Rect* rect, int x, int y) {
@@ -218,68 +142,42 @@ int in_bounds(SDL_Rect* rect, int x, int y) {
     y >= rect->y && y <= rect->y + rect->h;
 }
 
-void start_undo_record() {
-  undo_t* undo = malloc(sizeof(undo_t));
-  undo->next = undo_head;
-  undo_head = undo;
-  varray_init(pixel_t, &undo->pixels, 8);
-}
-
 void handle_event(SDL_Event* e) {
-  int x, y, state;
-  int cp_state = copy_paste_handle_events(e, undo_head, &image);
+  int mode = copy_paste_handle_events(e);
+  image_handle_events(e, win, mode != CP_PASTING);
   switch (e->type) {
     case SDL_KEYDOWN:
-      if (e->key.keysym.sym == SDLK_EQUALS) zoom_in();
-      if (e->key.keysym.sym == SDLK_MINUS) zoom_out();
-      if (e->key.keysym.sym == SDLK_s) save();
-      if (e->key.keysym.sym == SDLK_u) undo();
       if (e->key.keysym.sym == SDLK_g) grid.on = !grid.on;
       if (e->key.keysym.sym == SDLK_q) quit = 1;
       break;
     case SDL_QUIT:
       quit = 1;
       break;
-    case SDL_MOUSEMOTION:
-      state = SDL_GetMouseState(&x, &y);
-      if (state & SDL_BUTTON(SDL_BUTTON_LEFT) && cp_state != CP_PASTING) {
-        paint(x, y);
-      }
-      break;
-    case SDL_MOUSEWHEEL:
-      view.translation.x -= e->wheel.x*10;
-      view.translation.y += e->wheel.y*10;
-      break;
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
         if (in_bounds(&palette.dest, e->button.x, e->button.y)) {
           int tx, ty;
           translate_palette_coord(e->button.x, e->button.y, &tx, &ty);
-          color = palette.bitmap.data[ty * 4 + tx];
+          image_set_paint_color(palette.bitmap.data[ty * 4 + tx]);
           break;
         }
-        start_undo_record();
-        if (cp_state != CP_PASTING) {
-          paint(e->button.x, e->button.y);
-        }
-      } else if (e->button.button == SDL_BUTTON_RIGHT) {
-        pick_color(e->button.x, e->button.y);
       }
       break;
   }
 }
 
-void draw_grid() {
+void draw_grid(image_info_t info) {
   if (!grid.on) return;
-  grid.dest.x = view.translation.x;
-  grid.dest.y = view.translation.y;
-  for (int i = 0; i < image.height / MAJOR_BLOCK_SIZE; i++) {
-    for (int j = 0; j < image.width / MAJOR_BLOCK_SIZE; j++) {
+  build_grid(info.scale);
+  grid.dest.x = info.x;
+  grid.dest.y = info.y;
+  for (int i = 0; i < info.height / MAJOR_BLOCK_SIZE; i++) {
+    for (int j = 0; j < info.width / MAJOR_BLOCK_SIZE; j++) {
       SDL_RenderCopy(ren, grid.bitmap.tex, NULL, &grid.dest);
-      grid.dest.x += view.scale * MAJOR_BLOCK_SIZE;
+      grid.dest.x += info.scale * MAJOR_BLOCK_SIZE;
     }
-    grid.dest.x = view.translation.x;
-    grid.dest.y += view.scale * MAJOR_BLOCK_SIZE;
+    grid.dest.x = info.x;
+    grid.dest.y += info.scale * MAJOR_BLOCK_SIZE;
   }
 }
 
@@ -333,7 +231,6 @@ void draw_status_line() {
 void run_app(char* path, int width, int height) {
   status = path;
   filename = path;
-  view.scale = 1;
 
   global_thread_pool = thpool_init(GLOBAL_THREAD_POOL_SIZE);
 
@@ -354,48 +251,20 @@ void run_app(char* path, int width, int height) {
     exit(1);
   }
   bitmap_set_renderer(ren);
-  copy_paste_init(&view);
+  image_init(path, win, width, height);
+  copy_paste_init();
 
-  int req_format = STBI_rgb_alpha;
-  int orig_format;
-  unsigned int* data;
-  if (access(path, F_OK) != -1) {
-    // file exists
-    data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
-    if(data == NULL) {
-      SDL_Log("Loading image failed: %s", stbi_failure_reason());
-      exit(1);
-    }
-  } else {
-    int pixels = width * height;
-    size_t bytes = sizeof(unsigned int) * pixels;
-    data = malloc(bytes);
-    for (int i = 0; i < pixels; i++) {
-      data[i] = 0xFF000000;
-    }
-  }
-
-  image.data = NULL;
   palette.bitmap.data = NULL;
   grid.bitmap.data = NULL;
   font.bitmap.data = NULL;
 
-  bitmap_build_from_pixels(&image, data, width, height, &rgba32);
-
-  build_grid();
+  build_grid(1);
   grid.on = 1;
 
   bitmap_build_from_pixels(&palette.bitmap, (unsigned int*)pdata, 4, 16, &rgba32);
   palette.dest.y = 0;
   palette.dest.h = 16 * 16;
   palette.dest.w = 4 * 16;
-
-  int x, y;
-  SDL_GetWindowSize(win, &x, &y);
-  view.translation.x = x / 2 - width / 2;
-  view.translation.y = y / 2 - height / 2;
-  view.translation.h = height;
-  view.translation.w = width;
 
   SDL_Event e;
   SDL_Rect clip = {
@@ -412,18 +281,19 @@ void run_app(char* path, int width, int height) {
   );
 
   unsigned int* bmp = malloc(128 * 96 * sizeof(unsigned int));
-  alpha_channel_to_rgba(font.alpha, bmp, 128*96, 0xa1a193);
+  raw_alpha_channel_to_rgba(font.alpha, bmp, 128*96, 0xa1a193);
   bitmap_build_from_pixels(&font.bitmap, bmp, 128, 96, &rgba32);
 
   SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 
+  int x, y;
   while (!quit) {
-    SDL_SetRenderDrawColor(ren, 0, 0x2b, 0x36, 255);
-    SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, image.tex, NULL, &view.translation);
-    copy_paste_render(x, y, ren);
-    draw_grid();
     SDL_GetWindowSize(win, &x, &y);
+    image_draw(ren);
+    copy_paste_render(x, y, ren);
+    image_info_t info;
+    image_info(&info);
+    draw_grid(info);
     clip.x = x - 16 * 4;
     clip.h = y;
     SDL_SetRenderDrawColor(ren, 0x07, 0x36, 0x42, 255);
@@ -439,10 +309,7 @@ void run_app(char* path, int width, int height) {
     }
   }
 
-  SDL_FreeSurface(image.surf);
-  stbi_image_free(image.data);
-
-  SDL_DestroyTexture(image.tex);
+  image_destroy();
   SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
   SDL_Quit();
