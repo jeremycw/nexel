@@ -109,7 +109,10 @@ int copy_paste_handle_events(SDL_Event* e) {
       }
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
-        if (copy.state == CP_PASTING) paste(e->button.x, e->button.y);
+        if (copy.state == CP_PASTING) {
+          paste(e->button.x, e->button.y);
+          return 1;
+        }
       } else if (e->button.button == SDL_BUTTON_RIGHT) {
         start_copy(e->button.x, e->button.y);
       }
@@ -126,7 +129,7 @@ int copy_paste_handle_events(SDL_Event* e) {
       }
       break;
   }
-  return copy.state;
+  return 0;
 }
 
 void copy_paste_render(SDL_Renderer* ren) {

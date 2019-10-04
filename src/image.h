@@ -27,7 +27,7 @@ void image_set_paint_color(int c);
 void image_info(image_info_t* info);
 void image_init(char* path, SDL_Window* win, int width, int height);
 void image_destroy();
-void image_handle_events(SDL_Event* e, SDL_Window* win, int paintable);
+int image_handle_events(SDL_Event* e, SDL_Window* win);
 void image_draw(SDL_Renderer* ren);
 void image_snap_rect_to_pixel(SDL_Rect* rect);
 void image_snap_rect_to_block(SDL_Rect* rect);

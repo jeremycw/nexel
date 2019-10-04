@@ -143,8 +143,8 @@ int in_bounds(SDL_Rect* rect, int x, int y) {
 }
 
 void handle_event(SDL_Event* e) {
-  int mode = copy_paste_handle_events(e);
-  image_handle_events(e, win, mode != CP_PASTING);
+  if (copy_paste_handle_events(e)) return;
+  if (image_handle_events(e, win)) return;
   switch (e->type) {
     case SDL_KEYDOWN:
       if (e->key.keysym.sym == SDLK_g) grid.on = !grid.on;

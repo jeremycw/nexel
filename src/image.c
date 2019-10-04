@@ -45,6 +45,7 @@ void pick_color(int x, int y) {
 }
 
 void zoom_in(SDL_Window* win) {
+  if (scale == 32) return;
   int x, y;
   SDL_GetWindowSize(win, &x, &y);
   translation.y -= (y/2 - translation.y);
@@ -159,7 +160,7 @@ void image_undoable_write(int index, unsigned int color) {
   image.data[index] = color;
 }
 
-void image_handle_events(SDL_Event* e, SDL_Window* win, int paintable) {
+int image_handle_events(SDL_Event* e, SDL_Window* win) {
   int x, y, state;
   switch (e->type) {
     case SDL_KEYDOWN:
@@ -170,7 +171,7 @@ void image_handle_events(SDL_Event* e, SDL_Window* win, int paintable) {
       break;
     case SDL_MOUSEMOTION:
       state = SDL_GetMouseState(&x, &y);
-      if (state & SDL_BUTTON(SDL_BUTTON_LEFT) && paintable) {
+      if (state & SDL_BUTTON(SDL_BUTTON_LEFT)) {
         paint(x, y);
       }
       break;
@@ -180,15 +181,14 @@ void image_handle_events(SDL_Event* e, SDL_Window* win, int paintable) {
       break;
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
-        if (paintable) {
-          image_begin_undo_recording();
-          paint(e->button.x, e->button.y);
-        }
+        image_begin_undo_recording();
+        paint(e->button.x, e->button.y);
       } else if (e->button.button == SDL_BUTTON_RIGHT) {
         pick_color(e->button.x, e->button.y);
       }
       break;
   }
+  return 0;
 }
 
 void image_snap_rect_to_block(SDL_Rect* rect) {
