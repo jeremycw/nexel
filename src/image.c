@@ -172,6 +172,10 @@ int image_handle_events(SDL_Event* e, SDL_Window* win) {
     case SDL_MOUSEMOTION:
       state = SDL_GetMouseState(&x, &y);
       if (state & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+        // FIXME Sometimes a mouse motion event with mouse button down state
+        // will arrive before the click event. This will prevent segfaults but
+        // isn't the cleanest way to handle it.
+        if (undo_head == NULL) image_begin_undo_recording();
         paint(x, y);
       }
       break;
