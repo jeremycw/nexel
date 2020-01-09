@@ -163,18 +163,18 @@ void handle_event(SDL_Event* e) {
   }
 }
 
-void draw_grid(image_info_t info) {
+void draw_grid(int x, int y, int w, int h, int scale, int blksize) {
   if (!grid.on) return;
-  build_grid(info.scale);
-  grid.dest.x = info.x;
-  grid.dest.y = info.y;
-  for (int i = 0; i < info.height / MAJOR_BLOCK_SIZE; i++) {
-    for (int j = 0; j < info.width / MAJOR_BLOCK_SIZE; j++) {
+  build_grid(scale);
+  grid.dest.x = x;
+  grid.dest.y = y;
+  for (int i = 0; i < h / blksize; i++) {
+    for (int j = 0; j < w / blksize; j++) {
       SDL_RenderCopy(ren, grid.bitmap.tex, NULL, &grid.dest);
-      grid.dest.x += info.scale * MAJOR_BLOCK_SIZE;
+      grid.dest.x += scale * blksize;
     }
-    grid.dest.x = info.x;
-    grid.dest.y += info.scale * MAJOR_BLOCK_SIZE;
+    grid.dest.x = x;
+    grid.dest.y += scale * blksize;
   }
 }
 
@@ -286,7 +286,7 @@ void run_app(char* path, int width, int height) {
     copy_paste_render(ren);
     image_info_t info;
     image_info(&info);
-    draw_grid(info);
+    draw_grid(info.x, info.y, info.width, info.height, info.scale, MAJOR_BLOCK_SIZE);
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
     clip.h = y;

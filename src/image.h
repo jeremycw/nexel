@@ -2,7 +2,6 @@
 #define IMAGE_H
 
 #include <SDL2/SDL.h>
-#include "varray.h"
 
 #define BLOCK_SIZE 8
 #define MAJOR_BLOCK_SIZE 16
@@ -19,8 +18,6 @@ typedef struct {
   int x;
   int y;
 } image_info_t;
-
-varray_decl(pixel_t)
 
 void image_translate_coord(int x, int y, int* tx, int* ty);
 void image_set_paint_color(int c);

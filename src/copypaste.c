@@ -5,6 +5,8 @@
 #include "raw.h"
 #include "copypaste.h"
 
+enum { CP_NONE, CP_PASTING, CP_COPYING };
+
 typedef struct {
   SDL_Rect rect;
   SDL_Rect dest;

@@ -4,8 +4,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include "bitmap.h"
+#include "varray.h"
 #include "image.h"
 
+varray_decl(pixel_t)
 varray_defn(pixel_t);
 
 typedef struct {
