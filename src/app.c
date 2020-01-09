@@ -5,7 +5,6 @@
 #include "raw.h"
 #include "roboto.h"
 #include "nes.h"
-#include "threads.h"
 #include "bitmap.h"
 #include "copypaste.h"
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -106,8 +105,6 @@ static palette_t palette;
 
 static font_t font;
 static char* status;
-
-threadpool global_thread_pool = NULL;
 
 void translate_palette_coord(int x, int y, int* tx, int* ty) {
   *tx = (x - palette.dest.x) / 16; 
@@ -231,8 +228,6 @@ void draw_status_line() {
 void run_app(char* path, int width, int height) {
   status = path;
   filename = path;
-
-  global_thread_pool = thpool_init(GLOBAL_THREAD_POOL_SIZE);
 
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
