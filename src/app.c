@@ -279,6 +279,8 @@ void run_app(char* path, int width, int height) {
   bitmap_build_from_pixels(&font.bitmap, bmp, 128, 96, &rgba32);
 
   SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
+  int ntiles = width / BLOCK_SIZE * height / BLOCK_SIZE;
+  pal4_t* palettes = malloc(sizeof(pal4_t) * ntiles);
 
   int x, y;
   while (!quit) {
@@ -287,6 +289,9 @@ void run_app(char* path, int width, int height) {
     image_info_t info;
     image_info(&info);
     draw_grid(info.x, info.y, info.width, info.height, info.scale, MAJOR_BLOCK_SIZE);
+
+    nes_detect_palettes(image_raw(), info.width, info.height, palettes);
+    //nes_unique_palettes(palettes, ntiles, 
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
     clip.h = y;

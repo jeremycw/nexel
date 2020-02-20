@@ -1,4 +1,4 @@
-SOURCES=app.c image.c bitmap.c copypaste.c raw.c
+SOURCES=app.c image.c bitmap.c copypaste.c raw.c nes.c merge_sort.c
 TEST_SRCS=image_test.c nes_test.c pipe_test.c
 BINARY_NAME=nexel
 LFLAGS+=-lsdl2
@@ -29,7 +29,7 @@ $(DEBUG_DIR)/$(BINARY_NAME): $(DEBUG_OBJS) $(DEBUG_DIR)/main.o
 	$(CC) $(DEBUG_OBJS) $(DEBUG_DIR)/main.o $(LFLAGS) -o $@
 
 $(RELEASE_DIR)/$(BINARY_NAME): $(RELEASE_OBJS) $(RELEASE_DIR)/main.o
-	$(CC) $(RELEASE_OBJS) $(RELEASE_DIR)/main.o $(LFLAGS) -o $@
+	$(CC) $(RELEASE_OBJS) $(RELEASE_DIR)/main.o $(LFLAGS) -lomp -o $@
 
 $(TEST_DIR)/$(BINARY_NAME): $(TEST_OBJS) $(DEBUG_OBJS) $(TEST_DIR)/test.o
 	$(CC) $(DEBUG_OBJS) $(TEST_OBJS) $(TEST_DIR)/test.o $(LFLAGS) -o $@
@@ -46,13 +46,13 @@ $(DEBUG_DIR)/%.o: $(SRC_DIR)/%.c | $(DEBUG_DIR)
 	$(CC) -c -g -MMD $(CFLAGS) $< -o $@
 
 $(RELEASE_DIR)/%.o: $(SRC_DIR)/%.c | $(RELEASE_DIR)
-	$(CC) -c -O3 -MMD $(CFLAGS) $< -o $@
+	$(CC) -c -O3 -Xpreprocessor -fopenmp -MMD $(CFLAGS) $< -o $@
 
 $(TEST_DIR)/%.o: $(TEST_SRC_DIR)/%.c | $(TEST_DIR)
 	$(CC) -c -g -MMD $(CFLAGS) $< -o $@
 
 $(ASM_DIR)/%.s: $(SRC_DIR)/%.c | $(ASM_DIR)
-	$(CC) -S -O3 -mllvm --x86-asm-syntax=intel $(CFLAGS) $< -o $@
+	$(CC) -S -O3 -Xpreprocessor -fopenmp -mllvm --x86-asm-syntax=intel $(CFLAGS) $< -o $@
 
 $(DEBUG_DIR):
 	mkdir -p $@

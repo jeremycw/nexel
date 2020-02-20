@@ -12,7 +12,7 @@ typedef struct {
 
 varray_decl(pal4_t);
 
-void detect_palettes(unsigned int* data, int w, int h, pal4_t* palettes);
-void unique_palettes(pal4_t* palettes, int n, varray_t(pal4_t)* varray);
+void nes_detect_palettes(unsigned int const* data, int w, int h, pal4_t* palettes);
+void nes_unique_palettes(pal4_t* palettes, int n, varray_t(pal4_t)* varray);
 
 #endif
