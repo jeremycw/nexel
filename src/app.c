@@ -140,8 +140,6 @@ int in_bounds(SDL_Rect* rect, int x, int y) {
 }
 
 void handle_event(SDL_Event* e) {
-  if (copy_paste_handle_events(e)) return;
-  if (image_handle_events(e, win)) return;
   switch (e->type) {
     case SDL_KEYDOWN:
       if (e->key.keysym.sym == SDLK_g) grid.on = !grid.on;
@@ -156,11 +154,13 @@ void handle_event(SDL_Event* e) {
           int tx, ty;
           translate_palette_coord(e->button.x, e->button.y, &tx, &ty);
           image_set_paint_color(palette.bitmap.data[ty * 4 + tx]);
-          break;
+          return;
         }
       }
       break;
   }
+  if (copy_paste_handle_events(e)) return;
+  if (image_handle_events(e, win)) return;
 }
 
 void draw_grid(int x, int y, int w, int h, int scale, int blksize) {
@@ -289,9 +289,7 @@ void run_app(char* path, int width, int height) {
     image_info_t info;
     image_info(&info);
     draw_grid(info.x, info.y, info.width, info.height, info.scale, MAJOR_BLOCK_SIZE);
-
     nes_detect_palettes(image_raw(), info.width, info.height, palettes);
-    //nes_unique_palettes(palettes, ntiles, 
     SDL_GetWindowSize(win, &x, &y);
     clip.x = x - 16 * 4;
     clip.h = y;

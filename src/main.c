@@ -1,9 +1,14 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "app.h"
 
 int main(int argc, char** argv) {
-  if (argc < 2) return 1;
+  if (argc < 2) {
+    printf("Usage:\n");
+    printf("  nexel file-path [WxH]\n");
+    return 0;
+  }
   int width, height;
   if (argc > 2) {
     char* w = strtok(argv[2], "x");

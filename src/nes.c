@@ -14,32 +14,27 @@ int cmp_int(const void* a, const void* b) {
 }
 
 void nes_detect_palettes(unsigned int const* data, int w, int h, pal4_t* palettes) {
-  unsigned int* tiles = malloc(sizeof(unsigned int) * w * h);
   int ppb = BLOCK_SIZE * BLOCK_SIZE;
   #pragma omp parallel for
   for (int ty = 0; ty < h / BLOCK_SIZE; ty++) {
     for (int tx = 0; tx < w / BLOCK_SIZE; tx++) {
-      int i = (ty * h / BLOCK_SIZE + tx) * ppb;
+      unsigned int tile[64];
+      int i = 0;
       pixel_loop(tx * BLOCK_SIZE, ty * BLOCK_SIZE, w, 0, 0, 0, BLOCK_SIZE, BLOCK_SIZE) {
-        tiles[i] = data[si];
+        tile[i] = data[si];
         i++;
       }
-    }
-  }
-
-  int ntiles = w * h / ppb;
-  #pragma omp parallel for
-  for (int i = 0; i < ntiles; i++) {
-    merge_sort(&tiles[i], ppb, sizeof(uint32_t), cmp_int);
-    pal4_t pal = { .colours = { tiles[i], 0, 0, 0 } };
-    int pi = 0;
-    for (int j = i; j < i + ppb; j++) {
-      if (tiles[j] != pal.colours[pi]) {
-        pal.colours[++pi] = tiles[j];
+      merge_sort(tile, ppb, sizeof(uint32_t), cmp_int);
+      pal4_t pal = { .colours = { tile[0], 0, 0, 0 } };
+      int pi = 0;
+      for (int j = 0; j < ppb; j++) {
+        if (tile[j] != pal.colours[pi]) {
+          pal.colours[++pi] = tile[j];
+        }
+        if (pi == 3) break;
       }
-      if (pi == 3) break;
+      palettes[ty * w / BLOCK_SIZE + tx] = pal;
     }
-    palettes[i / ppb] = pal;
   }
 }
 
