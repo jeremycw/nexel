@@ -18,9 +18,9 @@
     di = (y_ + dst_y) * dst_pitch + (x_ + dst_x) \
   )
 
-void raw_alpha_channel_to_rgba(unsigned char* in, unsigned int* out, int n, unsigned int rgb);
-void raw_rotate_clockwise(unsigned int* in, int w, int h, unsigned int* out);
-void raw_mirror_horizontal(unsigned int* in, int w, int h);
-void raw_mirror_vertical(unsigned int* in, int w, int h);
+void raw_alpha_channel_to_rgba(uint8_t* in, uint32_t* out, int n, uint32_t rgb);
+void raw_rotate_clockwise(uint32_t* in, int w, int h, uint32_t* out);
+void raw_mirror_horizontal(uint32_t* in, int w, int h);
+void raw_mirror_vertical(uint32_t* in, int w, int h);
 
 #endif

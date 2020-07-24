@@ -31,9 +31,9 @@ void image_snap_rect_to_block(SDL_Rect* rect);
 void image_descale_rect(SDL_Rect* rect);
 void image_scale_rect(SDL_Rect* rect);
 void image_refresh();
-void image_undoable_write(int index, unsigned int color);
+void image_undoable_write(int index, uint32_t color);
 int image_pitch();
-unsigned int const * image_raw();
+uint32_t const * image_raw();
 void image_begin_undo_recording();
 
 #endif

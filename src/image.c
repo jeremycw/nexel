@@ -89,7 +89,7 @@ void image_begin_undo_recording() {
 }
 
 void save() {
-  stbi_write_png(filename, image.width, image.height, 4, (unsigned char*)image.data, image.pitch);
+  stbi_write_png(filename, image.width, image.height, 4, (uint8_t*)image.data, image.pitch);
 }
 
 void image_set_paint_color(int c) {
@@ -111,17 +111,17 @@ void image_init(char* path, SDL_Window* win, int width, int height) {
 
   int req_format = STBI_rgb_alpha;
   int orig_format;
-  unsigned int* data;
+  uint32_t* data;
   if (access(path, F_OK) != -1) {
     // file exists
-    data = (unsigned int*)stbi_load(path, &width, &height, &orig_format, req_format);
+    data = (uint32_t*)stbi_load(path, &width, &height, &orig_format, req_format);
     if(data == NULL) {
       SDL_Log("Loading image failed: %s", stbi_failure_reason());
       exit(1);
     }
   } else {
     int pixels = width * height;
-    size_t bytes = sizeof(unsigned int) * pixels;
+    size_t bytes = sizeof(uint32_t) * pixels;
     data = malloc(bytes);
     for (int i = 0; i < pixels; i++) {
       data[i] = 0xFF000000;
@@ -151,10 +151,10 @@ void image_destroy() {
 }
 
 void image_refresh() { bitmap_rebuild(&image); }
-unsigned int const * image_raw() { return image.data; }
+uint32_t const * image_raw() { return image.data; }
 int image_pitch() { return image.width; }
 
-void image_undoable_write(int index, unsigned int color) {
+void image_undoable_write(int index, uint32_t color) {
   if (image.data[index] == color) return;
 
   pixel_t pixel = { .index = index, .color = image.data[index] };

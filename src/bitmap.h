@@ -19,7 +19,7 @@ typedef struct {
 typedef struct {
   SDL_Surface* surf;
   SDL_Texture* tex;
-  unsigned int* data;
+  uint32_t* data;
   int width;
   int height;
   int pitch;
@@ -30,7 +30,7 @@ void bitmap_set_renderer(SDL_Renderer* renderer);
 void bitmap_safe_free(bitmap_t* bitmap);
 void bitmap_build(bitmap_t* bitmap);
 void bitmap_rebuild(bitmap_t* bitmap);
-void bitmap_build_from_pixels(bitmap_t* bitmap, unsigned int* data, int w, int h, img_format_t* format);
+void bitmap_build_from_pixels(bitmap_t* bitmap, uint32_t* data, int w, int h, img_format_t* format);
 
 extern img_format_t rgba32;
 

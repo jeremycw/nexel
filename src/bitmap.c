@@ -39,7 +39,7 @@ void bitmap_rebuild(bitmap_t* bitmap) {
   bitmap_build(bitmap);
 }
 
-void bitmap_build_from_pixels(bitmap_t* bitmap, unsigned int* data, int w, int h, img_format_t* format) {
+void bitmap_build_from_pixels(bitmap_t* bitmap, uint32_t* data, int w, int h, img_format_t* format) {
   bitmap_safe_free(bitmap);
   bitmap->width = w;
   bitmap->height = h;
