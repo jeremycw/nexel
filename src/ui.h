@@ -4,7 +4,6 @@
 #include <SDL2/SDL.h>
 
 #define UI_COLOUR_PICKER 0
-#define UI_PALETTE_SELECTOR 1
 
 void ui_init(SDL_Window* window, SDL_Renderer* renderer, int blksz);
 void ui_toggle_grid();

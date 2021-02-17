@@ -25,12 +25,6 @@ typedef struct {
   SDL_Rect dest;
 } ui_widget_t;
 
-typedef struct {
-  ui_widget_t widget;
-  uint32_t pixels[12];
-  int indexes[12];
-} palette_select_t;
-
 uint8_t pdata[] = {
   124,124,124,255,
   0,0,252,255,
@@ -102,7 +96,6 @@ uint8_t pdata[] = {
 
 static grid_t grid;
 static ui_widget_t picker;
-static palette_select_t bgr_palettes;
 
 static font_t font;
 static char* status;
@@ -205,15 +198,6 @@ void draw_status_line() {
   render_text(status, 5, y - 4);
 }
 
-void init_palettes(palette_select_t* palettes, SDL_Rect pos) {
-  for (int i = 0; i < 12; i++) {
-    palettes->indexes[i] = BLACK;
-    palettes->pixels[i] = ((uint32_t*)pdata)[BLACK];
-  }
-  bitmap_build_from_pixels(&palettes->widget.bitmap, palettes->pixels, 3, 4, &rgba32);
-  palettes->widget.dest = pos;
-}
-
 void ui_init(SDL_Window* window, SDL_Renderer* renderer, int blksz) {
   win = window;
   ren = renderer;
@@ -224,13 +208,6 @@ void ui_init(SDL_Window* window, SDL_Renderer* renderer, int blksz) {
     .h = 480,
     .w = COLOUR_SWATCH_SIZE_PX * COLOUR_PICKER_W
   };
-
-  init_palettes(&bgr_palettes, (SDL_Rect){
-    .x = 0,
-    .y = COLOUR_PICKER_H * COLOUR_SWATCH_SIZE_PX + COLOUR_SWATCH_SIZE_PX * 2,
-    .w = COLOUR_SWATCH_SIZE_PX * PALETTE_SIZE,
-    .h = COLOUR_SWATCH_SIZE_PX * PALETTE_COUNT
-  });
 
   picker.bitmap.data = NULL;
   grid.bitmap.data = NULL;
@@ -260,14 +237,6 @@ void ui_init(SDL_Window* window, SDL_Renderer* renderer, int blksz) {
   uint32_t* bmp = malloc(128 * 96 * sizeof(uint32_t));
   raw_alpha_channel_to_rgba(font.alpha, bmp, 128*96, 0xa1a193);
   bitmap_build_from_pixels(&font.bitmap, bmp, 128, 96, &rgba32);
-}
-
-void draw_palettes(SDL_Renderer* ren, palette_select_t* palettes) {
-  for (int i = 0; i < 12; i++) {
-    palettes->pixels[i] = ((uint32_t*)pdata)[palettes->indexes[i]];
-  }
-  bitmap_rebuild(&palettes->widget.bitmap);
-  SDL_RenderCopy(ren, palettes->widget.bitmap.tex, NULL, &palettes->widget.dest);
 }
 
 int in_bounds(SDL_Rect* rect, int x, int y) {
@@ -331,11 +300,7 @@ void ui_draw(int imgx, int imgy, int imgw, int imgh, int imgscale, int blksz) {
   SDL_RenderFillRect(ren, &clip);
   int right_pane_x = x - COLOUR_SWATCH_SIZE_PX * COLOUR_PICKER_W;
   picker.dest.x = right_pane_x;
-  bgr_palettes.widget.dest.x = right_pane_x;
   SDL_RenderCopy(ren, picker.bitmap.tex, NULL, &picker.dest);
-
-  render_text("Palettes", right_pane_x + 2, COLOUR_PICKER_H * COLOUR_SWATCH_SIZE_PX + COLOUR_SWATCH_SIZE_PX * 1.5f);
-  draw_palettes(ren, &bgr_palettes);
 
   draw_status_line();
 }
