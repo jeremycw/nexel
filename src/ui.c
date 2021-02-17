@@ -8,6 +8,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+#define COLOUR_PICKER_ID 0
+
 typedef struct {
   stbtt_bakedchar cdata[96];
   unsigned char alpha[128*96];
@@ -244,19 +246,15 @@ int in_bounds(SDL_Rect* rect, int x, int y) {
     y >= rect->y && y <= rect->y + rect->h;
 }
 
-void ui_toggle_grid() {
-  grid.on = !grid.on;
-}
-
-int ui_in_bounds(int widget_id, int x, int y) {
+int in_bounds_of(int widget_id, int x, int y) {
   switch (widget_id) {
-    case UI_COLOUR_PICKER:
+    case COLOUR_PICKER_ID:
       return in_bounds(&picker.dest, x, y);
   }
   return 0;
 }
 
-uint32_t ui_colour_picker_get_colour(int x, int y) {
+uint32_t colour_picker_get_colour(int x, int y) {
   int tx, ty;
   translate_picker_coord(x, y, &tx, &ty);
   return picker.bitmap.data[ty * COLOUR_PICKER_W + tx];
@@ -270,14 +268,14 @@ int ui_handle_events(SDL_Event* e) {
   switch (e->type) {
     case SDL_KEYDOWN:
       if (e->key.keysym.sym == SDLK_g) {
-        ui_toggle_grid();
+        grid.on = !grid.on;
         return 1;
       }
       break;
     case SDL_MOUSEBUTTONDOWN:
       if (e->button.button == SDL_BUTTON_LEFT) {
-        if (ui_in_bounds(UI_COLOUR_PICKER, e->button.x, e->button.y)) {
-          uint32_t colour = ui_colour_picker_get_colour(e->button.x, e->button.y);
+        if (in_bounds_of(COLOUR_PICKER_ID, e->button.x, e->button.y)) {
+          uint32_t colour = colour_picker_get_colour(e->button.x, e->button.y);
           image_set_paint_color(colour);
           return 1;
         }
