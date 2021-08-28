@@ -1,5 +1,5 @@
-SOURCES=app.c image.c bitmap.c copypaste.c raw.c ui.c renderer.c
-TEST_SRCS=image_test.c
+SOURCES=editor.c sdl_renderer.c
+TEST_SRCS=munit.c
 BINARY_NAME=nexel
 LFLAGS+=-lsdl2
 
