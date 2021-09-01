@@ -4,11 +4,7 @@
 #include "data.h"
 #include "sdl_renderer.h"
 #include "editor.h"
-
-#include "renderer.h"
-#include "ui.h"
-#include "image.h"
-#include "copypaste.h"
+#include "util.h"
 
 static int quit = 0;
 
@@ -131,8 +127,6 @@ void run_app(char* path, int width, int height) {
       }
     } while (SDL_PollEvent(&e));
   }
-
-  renderer_destroy();
 
   // SDL_DestroyWindow(win);
   SDL_Quit();

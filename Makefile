@@ -1,10 +1,12 @@
-SOURCES=editor.c sdl_renderer.c
+SOURCES=editor.c sdl_renderer.c app.c data.c util.c
 TEST_SRCS=munit.c
 BINARY_NAME=nexel
 LFLAGS+=-lsdl2
 
 CC=clang
 CFLAGS+=-Wall -Wextra -Werror -std=c99
+DEBUG_FLAGS+=-g -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all
+RELEASE_FLAGS+=-O3 -Xpreprocessor -fopenmp 
 
 SRC_DIR=src
 TEST_SRC_DIR=test
@@ -26,13 +28,13 @@ test: $(TEST_DIR)/$(BINARY_NAME)
 	$(TEST_DIR)/$(BINARY_NAME)
 
 $(DEBUG_DIR)/$(BINARY_NAME): $(DEBUG_OBJS) $(DEBUG_DIR)/main.o
-	$(CC) $(DEBUG_OBJS) $(DEBUG_DIR)/main.o $(LFLAGS) -o $@
+	$(CC) $(DEBUG_FLAGS) $(DEBUG_OBJS) $(DEBUG_DIR)/main.o $(LFLAGS) -o $@
 
 $(RELEASE_DIR)/$(BINARY_NAME): $(RELEASE_OBJS) $(RELEASE_DIR)/main.o
 	$(CC) $(RELEASE_OBJS) $(RELEASE_DIR)/main.o $(LFLAGS) -lomp -o $@
 
 $(TEST_DIR)/$(BINARY_NAME): $(TEST_OBJS) $(DEBUG_OBJS) $(TEST_DIR)/test.o
-	$(CC) $(DEBUG_OBJS) $(TEST_OBJS) $(TEST_DIR)/test.o $(LFLAGS) -o $@
+	$(CC) $(DEBUG_FLAGS) $(DEBUG_OBJS) $(TEST_OBJS) $(TEST_DIR)/test.o $(LFLAGS) -o $@
 
 asm: $(ASMS) $(ASM_DIR)
 
@@ -43,16 +45,16 @@ asm: $(ASMS) $(ASM_DIR)
 
 # compile and generate dependency info
 $(DEBUG_DIR)/%.o: $(SRC_DIR)/%.c | $(DEBUG_DIR)
-	$(CC) -c -g -MMD $(CFLAGS) $< -o $@
+	$(CC) $(DEBUG_FLAGS) -c -MMD $(CFLAGS) $< -o $@
 
 $(RELEASE_DIR)/%.o: $(SRC_DIR)/%.c | $(RELEASE_DIR)
-	$(CC) -c -O3 -Xpreprocessor -fopenmp -MMD $(CFLAGS) $< -o $@
+	$(CC) $(RELEASE_FLAGS) -c -MMD $(CFLAGS) $< -o $@
 
 $(TEST_DIR)/%.o: $(TEST_SRC_DIR)/%.c | $(TEST_DIR)
-	$(CC) -c -g -MMD $(CFLAGS) $< -o $@
+	$(CC) $(DEBUG_FLAGS) -c -MMD $(CFLAGS) $< -o $@
 
 $(ASM_DIR)/%.s: $(SRC_DIR)/%.c | $(ASM_DIR)
-	$(CC) -S -O3 -Xpreprocessor -fopenmp -mllvm --x86-asm-syntax=intel $(CFLAGS) $< -o $@
+	$(CC) $(RELEASE_FLAGS) -S -mllvm --x86-asm-syntax=intel $(CFLAGS) $< -o $@
 
 $(DEBUG_DIR):
 	mkdir -p $@

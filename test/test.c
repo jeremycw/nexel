@@ -2,6 +2,7 @@
 #include "munit.h"
 #include "../src/editor.h"
 #include "../src/data.h"
+#include "../src/util.h"
 #include "../src/sdl_renderer.h"
 #include "../src/debugbreak.h"
 
@@ -10,14 +11,14 @@ static MunitResult test_editor_toggle_grid(const MunitParameter params[], void* 
   (void)data;
 
   struct din_editor_toggle_grid din = { .grid_enabled = 0 };
-  struct dout_editor_toggle_grid dout =  editor_toggle_grid(din);
+  struct dout_editor_toggle_grid* dout =  editor_toggle_grid(&din);
 
-  munit_assert(dout.grid_enabled == 1);
+  munit_assert(dout->grid_enabled == 1);
 
   din = (struct din_editor_toggle_grid) { .grid_enabled = 1 };
-  dout = editor_toggle_grid(din);
+  dout = editor_toggle_grid(&din);
 
-  munit_assert(dout.grid_enabled == 0);
+  munit_assert(dout->grid_enabled == 0);
 
   return MUNIT_OK;
 }
@@ -26,17 +27,19 @@ static MunitResult test_editor_copy_selection(const MunitParameter params[], voi
   (void)params;
   (void)data;
 
-  struct indexed_bitmap indexed_bitmap[2];
-
   struct din_editor_copy_selection din = {
     .dout = {
-      .copies = indexed_bitmap,
-      .copies_meta = { .size = 0, .capacity = 2, .type_size = sizeof(struct indexed_bitmap) }
+      .copies = (struct indexed_bitmap[2]) {},
+      .copies_meta = { .size = 0, .capacity = 2, .type_size = sizeof(struct indexed_bitmap) },
+      .copy_bitmaps = (struct sdl_bitmap[2]) {},
+      .copy_bitmaps_meta = { .size = 0, .capacity = 2, .type_size = sizeof(struct sdl_bitmap) }
     },
     .sdl_renderer = NULL,
     .palette_colours = (uint32_t[]) { [0] = 0xFF0000FF, [1] = 0x00FF00FF, [2] = 0x0000FFFF, [3] = 0x000000FF },
-    .image_scale = 4,
-    .image_translation = (struct point) { .x = 3, .y = 3 },
+    .image_transform = (struct transform) {
+      .scale = 4,
+      .translation = (struct point) { .x = 3, .y = 3 },
+    },
     .selections_n = 2,
     .selections = (struct selection[]) {
       [0] = (struct selection) {
@@ -53,28 +56,28 @@ static MunitResult test_editor_copy_selection(const MunitParameter params[], voi
     .image_width = 2
   };
 
-  struct dout_editor_copy_selection dout = editor_copy_selection(din);
+  struct dout_editor_copy_selection* dout = editor_copy_selection(&din);
 
   // there should be two copies made from selections
-  munit_assert(array_len(dout.copies) == 2);
+  munit_assert(array_len(dout->copies) == 2);
 
   // each should be 1x2
-  munit_assert(dout.copies[0].width == 1);
-  munit_assert(dout.copies[1].width == 1);
-  munit_assert(dout.copies[0].height == 2);
-  munit_assert(dout.copies[1].height == 2);
+  munit_assert(dout->copies[0].width == 1);
+  munit_assert(dout->copies[1].width == 1);
+  munit_assert(dout->copies[0].height == 2);
+  munit_assert(dout->copies[1].height == 2);
 
   // check that their indexed pixels are correct
-  munit_assert(dout.copies[0].pixels[0] == 0);
-  munit_assert(dout.copies[0].pixels[1] == 2);
-  munit_assert(dout.copies[1].pixels[0] == 1);
-  munit_assert(dout.copies[1].pixels[1] == 3);
+  munit_assert(dout->copies[0].pixels[0] == 0);
+  munit_assert(dout->copies[0].pixels[1] == 2);
+  munit_assert(dout->copies[1].pixels[0] == 1);
+  munit_assert(dout->copies[1].pixels[1] == 3);
 
   // check the the correct rgb values are getting to the sdl surface
-  munit_assert(((uint32_t*)dout.copies[0].sdl_bitmap.surface->pixels)[0] == 0xFF0000FF);
-  munit_assert(((uint32_t*)dout.copies[0].sdl_bitmap.surface->pixels)[1] == 0x0000FFFF);
-  munit_assert(((uint32_t*)dout.copies[1].sdl_bitmap.surface->pixels)[0] == 0x00FF00FF);
-  munit_assert(((uint32_t*)dout.copies[1].sdl_bitmap.surface->pixels)[1] == 0x000000FF);
+  munit_assert(((uint32_t*)dout->copy_bitmaps[0].surface->pixels)[0] == 0xFF0000FF);
+  munit_assert(((uint32_t*)dout->copy_bitmaps[0].surface->pixels)[1] == 0x0000FFFF);
+  munit_assert(((uint32_t*)dout->copy_bitmaps[1].surface->pixels)[0] == 0x00FF00FF);
+  munit_assert(((uint32_t*)dout->copy_bitmaps[1].surface->pixels)[1] == 0x000000FF);
 
   return MUNIT_OK;
 }
@@ -84,8 +87,10 @@ static MunitResult test_editor_apply_paste(const MunitParameter params[], void* 
   (void)data;
 
   struct din_editor_apply_paste din = {
-    .image_scale = 4,
-    .image_translation = (struct point) { .x = 3, .y = 3 },
+    .image_transform = (struct transform) {
+      .scale = 4,
+      .translation = (struct point) { .x = 3, .y = 3 },
+    },
     .selections_n = 2,
     .selections = (struct selection[]) {
       [0] = (struct selection) {
@@ -115,26 +120,26 @@ static MunitResult test_editor_apply_paste(const MunitParameter params[], void* 
     .editor_block_size = 1
   };
 
-  struct dout_editor_apply_paste dout = editor_apply_paste(din);
+  struct dout_editor_apply_paste* dout = editor_apply_paste(&din);
 
   // there should be two copies made from selections
-  munit_assert(array_len(dout.pixel_changes) == 4);
+  munit_assert(array_len(dout->pixel_changes) == 4);
 
-  munit_assert(dout.pixel_changes[0].buffer_index == 1);
-  munit_assert(dout.pixel_changes[0].from == 1);
-  munit_assert(dout.pixel_changes[0].to == 0);
+  munit_assert(dout->pixel_changes[0].buffer_index == 1);
+  munit_assert(dout->pixel_changes[0].from == 1);
+  munit_assert(dout->pixel_changes[0].to == 0);
 
-  munit_assert(dout.pixel_changes[1].buffer_index == 4);
-  munit_assert(dout.pixel_changes[1].from == 4);
-  munit_assert(dout.pixel_changes[1].to == 2);
+  munit_assert(dout->pixel_changes[1].buffer_index == 4);
+  munit_assert(dout->pixel_changes[1].from == 4);
+  munit_assert(dout->pixel_changes[1].to == 2);
 
-  munit_assert(dout.pixel_changes[2].buffer_index == 2);
-  munit_assert(dout.pixel_changes[2].from == 2);
-  munit_assert(dout.pixel_changes[2].to == 1);
+  munit_assert(dout->pixel_changes[2].buffer_index == 2);
+  munit_assert(dout->pixel_changes[2].from == 2);
+  munit_assert(dout->pixel_changes[2].to == 1);
 
-  munit_assert(dout.pixel_changes[3].buffer_index == 5);
-  munit_assert(dout.pixel_changes[3].from == 5);
-  munit_assert(dout.pixel_changes[3].to == 3);
+  munit_assert(dout->pixel_changes[3].buffer_index == 5);
+  munit_assert(dout->pixel_changes[3].from == 5);
+  munit_assert(dout->pixel_changes[3].to == 3);
 
   return MUNIT_OK;
 }
@@ -144,6 +149,10 @@ static MunitResult test_editor_transform_selection(const MunitParameter params[]
   (void)data;
 
   struct din_editor_transform_selection din = {
+    .dout = {
+      .copy_bitmaps = (struct sdl_bitmap[1]) {},
+      .copy_bitmaps_meta = { .size = 0, .capacity = 1, .type_size = sizeof(struct sdl_bitmap) }
+    },
     .sdl_renderer = NULL,
     .copies_n = 1,
     .palette_colours = (uint32_t[]) { [0] = 0xFF0000FF, [1] = 0x00FF00FF, [2] = 0x0000FFFF, [3] = 0x000000FF },
@@ -156,13 +165,13 @@ static MunitResult test_editor_transform_selection(const MunitParameter params[]
     }
   };
 
-  struct dout_editor_transform_selection dout = editor_transform_selection(rotate_clockwise_transform, din);
+  struct dout_editor_transform_selection* dout = editor_transform_selection(rotate_clockwise_transform, &din);
 
-  munit_assert(dout.transformed_copies[0].width == 2);
-  munit_assert(dout.transformed_copies[0].height == 1);
+  munit_assert(dout->transformed_copies[0].width == 2);
+  munit_assert(dout->transformed_copies[0].height == 1);
 
-  munit_assert(dout.transformed_copies[0].pixels[0] == 1);
-  munit_assert(dout.transformed_copies[0].pixels[1] == 0);
+  munit_assert(dout->transformed_copies[0].pixels[0] == 1);
+  munit_assert(dout->transformed_copies[0].pixels[1] == 0);
 
   return MUNIT_OK;
 }
@@ -180,13 +189,13 @@ static MunitResult test_editor_paint(const MunitParameter params[], void* data) 
     .paint_colour = 5
   };
 
-  struct dout_editor_paint dout = editor_paint(EDITOR_BEGIN_UNDO_GROUP, din);
+  struct dout_editor_paint* dout = editor_paint(EDITOR_BEGIN_UNDO_GROUP, &din);
 
-  munit_assert(dout.begin_undoable_group == EDITOR_BEGIN_UNDO_GROUP);
+  munit_assert(dout->begin_undoable_group == EDITOR_BEGIN_UNDO_GROUP);
 
-  munit_assert(dout.pixel_change.buffer_index == 1);
-  munit_assert(dout.pixel_change.from == 1);
-  munit_assert(dout.pixel_change.to == 5);
+  munit_assert(dout->pixel_change.buffer_index == 1);
+  munit_assert(dout->pixel_change.from == 1);
+  munit_assert(dout->pixel_change.to == 5);
 
   return MUNIT_OK;
 }
@@ -204,9 +213,9 @@ static MunitResult test_editor_pick_image_colour(const MunitParameter params[], 
     .paint_colour = 5
   };
 
-  struct dout_editor_pick_image_colour dout = editor_pick_image_colour(din);
+  struct dout_editor_pick_image_colour* dout = editor_pick_image_colour(&din);
 
-  munit_assert(dout.paint_colour == 1);
+  munit_assert(dout->paint_colour == 1);
 
   return MUNIT_OK;
 }
