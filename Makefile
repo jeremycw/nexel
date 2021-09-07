@@ -20,7 +20,7 @@ RELEASE_OBJS = $(SOURCES:%.c=$(RELEASE_DIR)/%.o)
 TEST_OBJS = $(TEST_SRCS:%.c=$(TEST_DIR)/%.o)
 ASMS = $(SOURCES:%.c=$(ASM_DIR)/%.s)
 
-.PHONY: debug test release clean asm
+.PHONY: debug test release clean asm run
 
 debug: $(DEBUG_DIR)/$(BINARY_NAME)
 release: $(RELEASE_DIR)/$(BINARY_NAME)
@@ -37,6 +37,9 @@ $(TEST_DIR)/$(BINARY_NAME): $(TEST_OBJS) $(DEBUG_OBJS) $(TEST_DIR)/test.o
 	$(CC) $(DEBUG_FLAGS) $(DEBUG_OBJS) $(TEST_OBJS) $(TEST_DIR)/test.o $(LFLAGS) -o $@
 
 asm: $(ASMS) $(ASM_DIR)
+
+run: debug
+	$(DEBUG_DIR)/$(BINARY_NAME)
 
 # pull in dependency info for *existing* .o files
 -include $(TEST_OBJS:.o=.d)

@@ -165,6 +165,8 @@ void flip_vertical_transform(
 }
 
 struct transform zoom_out(struct dimensions window, struct transform transform) {
+  if (transform.scale == 1) return transform;
+
   transform.translation.y += (window.h/2 - transform.translation.y)/2;
   transform.translation.x += (window.w/2 - transform.translation.x)/2;
   transform.scale /= 2;
@@ -172,6 +174,8 @@ struct transform zoom_out(struct dimensions window, struct transform transform) 
 }
 
 struct transform zoom_in(struct dimensions window, struct transform transform) {
+  if (transform.scale == 64) return transform;
+
   transform.translation.y -= (window.h/2 - transform.translation.y)/2;
   transform.translation.x -= (window.w/2 - transform.translation.x)/2;
   transform.scale *= 2;

@@ -95,7 +95,6 @@ struct dout_editor_copy_selection* editor_copy_selection(struct din_editor_copy_
   array_init(din->dout.copies, sizeof(struct indexed_bitmap), din->selections_n);
   array_init(din->dout.copy_bitmaps, sizeof(struct sdl_bitmap), din->selections_n);
 
-  // XXX need to check for copying out of bounds
   indexed_pixel_t* copied_pixels = buffer;
   for (int i = 0; i < din->selections_n; i++) {
     pixel_loop(
@@ -108,6 +107,10 @@ struct dout_editor_copy_selection* editor_copy_selection(struct din_editor_copy_
       bitmap_rects[i].w, // destination width
       bitmap_rects[i].h  // destination height
     ) {
+      // TODO It would be cleaner to properly calculate the bitmap rect instead
+      // of just bounds checking.
+      if (si >= (int)pixel_count || si < 0) break;
+
       copied_pixels[di] = din->image_pixels[si];
     }
 
@@ -182,6 +185,10 @@ struct dout_editor_apply_paste* editor_apply_paste(struct din_editor_apply_paste
       paste_destinations[i].w, // destination width
       paste_destinations[i].h  // destination height
     ) {
+      // TODO It would be cleaner to properly calculate the bitmap rect instead
+      // of just bounds checking.
+      if (si >= n || si < 0) break;
+
       if (din->image_pixels[di] == din->copies[i].pixels[si]) continue;
 
       struct pixel_change pixel_change = {
@@ -256,7 +263,7 @@ struct dout_editor_zoom* editor_zoom(zoom_fn_t zoom_fn, struct din_editor_zoom* 
   din->dout.image_transform = zoom_fn(din->window_size, din->image_transform);
 
   // resize grid
-  din->dout.grid_bitmap = create_grid_sdl_bitmap(din->sdl_renderer, din->tile_size, din->image_transform.scale);
+  din->dout.grid_bitmap = create_grid_sdl_bitmap(din->sdl_renderer, din->tile_size, din->dout.image_transform.scale);
   
   return &din->dout;
 }

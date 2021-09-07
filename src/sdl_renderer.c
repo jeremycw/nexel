@@ -91,6 +91,7 @@ void sdl_renderer_draw(struct din_sdl_renderer_draw* din) {
     }
   }
 
+  colour = din->selection_colour;
   SDL_SetRenderDrawColor(din->sdl_renderer, colour.r, colour.g, colour.b, colour.a);
   for (int i = 0; i < din->selections_n; i++) {
     colour = din->selection_colour;
