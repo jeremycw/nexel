@@ -10,6 +10,12 @@
 #define AMASK 0xff000000
 
 #define BITS_IN_BYTE 8
+#define BITS_PER_PIXEL 32
+
+#define EDITOR_TILE_SIZE 8
+
+#define BACKGROUND_COLOUR 0x002b36ff
+#define SELECTION_COLOUR 0x0000ff64
 
 #define array_push(buf, a) \
   if (buf##_meta.size == buf##_meta.capacity) { \
@@ -53,6 +59,16 @@
 #define array_len(buf) \
   buf##_meta.size
 
+#define array_first(buf) \
+  buf[0]
+
+#define array_last(buf) \
+  buf[buf##_meta.size-1]
+
+#define array_assign(buf, other) \
+  buf = other; \
+  buf##_meta = other##_meta;
+
 struct data;
 
 enum editor_states {
@@ -75,12 +91,12 @@ struct dimensions {
 
 typedef union {
   uint32_t colour;
-  uint8_t rgba[4];
+  uint8_t bytes[4];
   struct {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
     uint8_t a;
+    uint8_t b;
+    uint8_t g;
+    uint8_t r;
   };
 } colour_t;
 
@@ -103,7 +119,7 @@ struct array_meta {
 
 struct palette {
   char const* name;
-  uint32_t* colours;
+  colour_t* colours;
   int n;
 };
 
@@ -181,6 +197,7 @@ struct editor {
   array_decl(struct indexed_bitmap, copies)
   enum editor_states state;
   struct palette_selector palette_selector;
+  int grid_enabled;
 };
 
 struct sdl_state {
@@ -193,8 +210,7 @@ struct sdl_renderer {
   struct sdl_bitmap image;
   struct sdl_bitmap palette;
   struct sdl_bitmap grid;
-  colour_t* grid_buffer;
-  array_decl(struct sdl_bitmap, copy_bitmaps)
+  array_decl(struct sdl_bitmap, copy_bitmaps);
 
   SDL_Window* window;
   SDL_Renderer* renderer;
@@ -226,7 +242,6 @@ struct ui {
   struct ui_text* texts;
 };
 
-
 // sdl_renderer_draw
 struct din_sdl_renderer_draw* data_r_sdl_renderer_draw(struct data* data);
 
@@ -236,7 +251,7 @@ struct din_sdl_renderer_draw {
   int grid_enabled;
   int tile_size;
   struct transform image_transform;
-  struct sdl_bitmap image_bitmap;
+  struct sdl_bitmap image_sdl_bitmap;
   SDL_Texture* grid_texture;
   colour_t selection_colour;
   int selections_n;
@@ -253,7 +268,7 @@ struct dout_editor_copy_selection {
 struct din_editor_copy_selection {
   struct dout_editor_copy_selection dout;
   SDL_Renderer* sdl_renderer;
-  uint32_t const* palette_colours;
+  colour_t const* palette_colours;
   struct transform image_transform;
   int selections_n;
   struct selection const* selections;
@@ -280,14 +295,13 @@ struct din_editor_resize_selection* data_r_editor_resize_selection(struct data* 
 
 // editor_start_selection
 struct dout_editor_start_selection {
-  struct rect selection;
+  struct selection selection;
   enum editor_states state;
 };
 
 struct din_editor_start_selection {
   struct dout_editor_start_selection dout;
-  int mouse_x;
-  int mouse_y;
+  struct point mouse;
 };
 
 void data_w_editor_start_selection(struct data* data, struct dout_editor_start_selection* dout);
@@ -295,12 +309,11 @@ struct din_editor_start_selection* data_r_editor_start_selection(struct data* da
 
 // editor_cancel_paste
 struct dout_editor_cancel_paste {
-  struct array_meta copies_meta;
+  enum editor_states editor_state;
 };
 
 struct din_editor_cancel_paste {
   struct dout_editor_cancel_paste dout;
-  array_decl(struct indexed_bitmap const, copies)
 };
 
 void data_w_editor_cancel_paste(struct data* data, struct dout_editor_cancel_paste* dout);
@@ -351,7 +364,7 @@ struct din_editor_transform_selection {
   struct dout_editor_transform_selection dout;
   int copies_n;
   SDL_Renderer* sdl_renderer;
-  uint32_t const* palette_colours;
+  colour_t const* palette_colours;
   struct indexed_bitmap const* copies;
 };
 
@@ -381,7 +394,6 @@ struct din_editor_paint* data_r_editor_paint(struct data* data);
 struct dout_editor_zoom {
   struct transform image_transform;
   struct sdl_bitmap grid_bitmap;
-  colour_t* grid_buffer;
 };
 
 struct din_editor_zoom {
@@ -410,11 +422,19 @@ struct din_sdl_get_state* data_r_sdl_get_state(struct data* data);
 
 // sdl_renderer_init
 struct dout_sdl_renderer_init {
-  struct sdl_renderer sdl_renderer;
+  struct SDL_Renderer* renderer;
+  struct SDL_Window* window;
+  struct sdl_bitmap image;
+  struct sdl_bitmap grid;
+  struct sdl_bitmap palette;
 };
 
 struct din_sdl_renderer_init {
   struct dout_sdl_renderer_init dout;
+  int image_scale;
+  struct indexed_bitmap image_indexed_bitmap;
+  int tile_size;
+  colour_t const* palette_colours;
 };
 
 void data_w_sdl_renderer_init(struct data* data, struct dout_sdl_renderer_init* dout);
@@ -446,6 +466,30 @@ struct din_editor_select_command {
 
 struct din_editor_select_command* data_r_editor_select_command(struct data* data);
 
+// editor_save_image
+struct din_editor_save_image {
+  char const* image_filename;
+  struct indexed_bitmap image;
+};
+
+struct din_editor_save_image* data_r_editor_save_image(struct data* data);
+
+// editor_init
+struct dout_editor_init {
+  int grid_enabled;
+  struct palette default_palette;
+  struct indexed_bitmap image;
+  char const* display_name;
+  int image_scale;
+};
+
+struct din_editor_init {
+  struct dout_editor_init dout;
+};
+
+void data_w_editor_init(struct data* data, struct dout_editor_init* dout);
+struct din_editor_init* data_r_editor_init(struct data* data);
+
 // 
 struct data_io_pool {
   union {
@@ -464,6 +508,8 @@ struct data_io_pool {
     struct din_editor_toggle_grid editor_toggle_grid;
     struct din_editor_paint editor_paint;
     struct din_editor_select_command editor_select_command;
+    struct din_editor_save_image editor_save_image;
+    struct din_editor_init editor_init;
   };
 };
 

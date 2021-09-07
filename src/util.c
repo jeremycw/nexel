@@ -31,14 +31,18 @@ struct rect selection_to_rect(struct selection selection) {
   return rect;
 }
 
-struct point screen_point_to_bitmap_point(struct point point, struct transform image_transform) {
+struct point screen_point_to_bitmap_point(
+  struct point point, struct transform image_transform
+) {
   struct point translated;
   translated.x = (point.x - image_transform.translation.x) / image_transform.scale; 
   translated.y = (point.y - image_transform.translation.y) / image_transform.scale;
   return translated;
 }
 
-struct rect screen_selection_to_bitmap_rect(struct selection selection, struct transform image_transform) {
+struct rect screen_selection_to_bitmap_rect(
+  struct selection selection, struct transform image_transform
+) {
   struct rect rect = selection_to_rect(selection);
 
   rect = snap_rect_to_pixel(rect, image_transform);
@@ -59,49 +63,66 @@ struct rect screen_selection_to_bitmap_rect(struct selection selection, struct t
   return rect;
 }
 
-void indexed_bitmap_to_rgba(indexed_pixel_t const* indexed_pixels, int n, uint32_t const* palette_colours, uint32_t* out) {
+void indexed_bitmap_to_rgba(
+  indexed_pixel_t const* indexed_pixels,
+  int n,
+  colour_t const* palette_colours,
+  colour_t* out
+) {
   for (int i = 0; i < n; i++) {
     out[i] = palette_colours[indexed_pixels[i]];
   }
+}
+
+struct sdl_bitmap sdl_bitmap_from_raw_buffer(
+  SDL_Renderer* renderer, void* buffer, struct dimensions dimensions
+) {
+  int pitch = dimensions.w * (BITS_PER_PIXEL / BITS_IN_BYTE);
+  SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
+    buffer,         // buffer
+    dimensions.w,   // width
+    dimensions.h,   // height
+    BITS_PER_PIXEL, // bpp
+    pitch,          // pitch
+    RMASK,          // red mask
+    GMASK,          // green mask
+    BMASK,          // blue mask
+    AMASK           // alpha mask
+  );
+
+  return (struct sdl_bitmap) {
+    .surface = surface,
+    .texture = SDL_CreateTextureFromSurface(renderer, surface)
+  };
 }
 
 void generate_sdl_bitmaps_for_indexed_bitmaps(
   indexed_pixel_t const* pixels,
   int pixels_n,
   SDL_Renderer* sdl_renderer,
-  uint32_t const* palette_colours,
+  colour_t const* palette_colours,
   struct indexed_bitmap const* indexed_bitmaps,
   int indexed_bitmaps_n,
   struct sdl_bitmap* copy_bitmaps
 ) {
-  uint32_t* buffer = malloc(sizeof(uint32_t) * pixels_n);
+  colour_t* buffer = malloc(sizeof(uint32_t) * pixels_n);
   indexed_bitmap_to_rgba(pixels, pixels_n, palette_colours, buffer);
-  uint32_t* bitmap = buffer;
+  colour_t* bitmap = buffer;
   for (int i = 0; i < indexed_bitmaps_n; i++) {
     int w = indexed_bitmaps[i].width;
     int h = indexed_bitmaps[i].height;
-    int bpp = 32;
-    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
-      bitmap,                   // buffer
-      w,                        // width
-      h,                        // height
-      bpp,                      // bpp
-      w * (bpp / BITS_IN_BYTE), // pitch
-      RMASK,                    // red mask
-      GMASK,                    // green mask
-      BMASK,                    // blue mask
-      AMASK                     // alpha mask
+    copy_bitmaps[i] = sdl_bitmap_from_raw_buffer(
+      sdl_renderer,
+      bitmap,
+      (struct dimensions) { .w = w, .h = h }
     );
-
-    copy_bitmaps[i] = (struct sdl_bitmap) {
-      .surface = surface,
-      .texture = SDL_CreateTextureFromSurface(sdl_renderer, surface)
-    };
     bitmap += w * h;
   }
 }
 
-void rotate_clockwise_transform(indexed_pixel_t* in, int w, int h, int* wout, int* hout, indexed_pixel_t* out) {
+void rotate_clockwise_transform(
+  indexed_pixel_t* in, int w, int h, int* wout, int* hout, indexed_pixel_t* out
+) {
   for (int j = 0; j < h; j++) {
     for (int k = 0; k < w; k++) {
       int source_index = j * w + k;
@@ -113,7 +134,9 @@ void rotate_clockwise_transform(indexed_pixel_t* in, int w, int h, int* wout, in
   *hout = w;
 }
 
-void flip_horizontal_transform(indexed_pixel_t* in, int w, int h, int* wout, int* hout, indexed_pixel_t* out) {
+void flip_horizontal_transform(
+  indexed_pixel_t* in, int w, int h, int* wout, int* hout, indexed_pixel_t* out
+) {
   for (int y = 0; y < h; y++) {
     for (int x = 0; x < w / 2; x++) {
       int i = y * w + x;
@@ -126,7 +149,9 @@ void flip_horizontal_transform(indexed_pixel_t* in, int w, int h, int* wout, int
   *hout = h;
 }
 
-void flip_vertical_transform(indexed_pixel_t* in, int w, int h, int* wout, int* hout, indexed_pixel_t* out) {
+void flip_vertical_transform(
+  indexed_pixel_t* in, int w, int h, int* wout, int* hout, indexed_pixel_t* out
+) {
   for (int y = 0; y < h / 2; y++) {
     for (int x = 0; x < w; x++) {
       int i = y * w + x;
@@ -162,5 +187,15 @@ colour_t* create_grid_tile_bitmap(int size) {
     if (i % 2 == 0) grid_pixels[j + size/2].colour = 0xffdddddd;
   }
   return grid_pixels;
+}
+
+struct sdl_bitmap create_grid_sdl_bitmap(SDL_Renderer* renderer, int tile_size, int scale) {
+  int width = tile_size * scale;
+  colour_t* grid_buffer = create_grid_tile_bitmap(width);
+  return sdl_bitmap_from_raw_buffer(
+    renderer,
+    grid_buffer,
+    (struct dimensions) { .w = width, .h = width }
+  );
 }
 

@@ -1,4 +1,4 @@
-SOURCES=editor.c sdl_renderer.c app.c data.c util.c
+SOURCES=editor.c sdl_renderer.c data.c util.c
 TEST_SRCS=munit.c
 BINARY_NAME=nexel
 LFLAGS+=-lsdl2

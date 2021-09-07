@@ -28,14 +28,8 @@ static MunitResult test_editor_copy_selection(const MunitParameter params[], voi
   (void)data;
 
   struct din_editor_copy_selection din = {
-    .dout = {
-      .copies = (struct indexed_bitmap[2]) {},
-      .copies_meta = { .size = 0, .capacity = 2, .type_size = sizeof(struct indexed_bitmap) },
-      .copy_bitmaps = (struct sdl_bitmap[2]) {},
-      .copy_bitmaps_meta = { .size = 0, .capacity = 2, .type_size = sizeof(struct sdl_bitmap) }
-    },
     .sdl_renderer = NULL,
-    .palette_colours = (uint32_t[]) { [0] = 0xFF0000FF, [1] = 0x00FF00FF, [2] = 0x0000FFFF, [3] = 0x000000FF },
+    .palette_colours = (colour_t*)(uint32_t[]) { [0] = 0xFF0000FF, [1] = 0x00FF00FF, [2] = 0x0000FFFF, [3] = 0x000000FF },
     .image_transform = (struct transform) {
       .scale = 4,
       .translation = (struct point) { .x = 3, .y = 3 },
@@ -149,13 +143,9 @@ static MunitResult test_editor_transform_selection(const MunitParameter params[]
   (void)data;
 
   struct din_editor_transform_selection din = {
-    .dout = {
-      .copy_bitmaps = (struct sdl_bitmap[1]) {},
-      .copy_bitmaps_meta = { .size = 0, .capacity = 1, .type_size = sizeof(struct sdl_bitmap) }
-    },
     .sdl_renderer = NULL,
     .copies_n = 1,
-    .palette_colours = (uint32_t[]) { [0] = 0xFF0000FF, [1] = 0x00FF00FF, [2] = 0x0000FFFF, [3] = 0x000000FF },
+    .palette_colours = (colour_t*)(uint32_t[]) { [0] = 0xFF0000FF, [1] = 0x00FF00FF, [2] = 0x0000FFFF, [3] = 0x000000FF },
     .copies = (struct indexed_bitmap[]) {
       [0] = {
         .width = 1,

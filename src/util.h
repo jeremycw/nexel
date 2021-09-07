@@ -31,15 +31,18 @@ struct rect snap_rect_to_pixel(struct rect rect, struct transform image_transfor
 struct rect selection_to_rect(struct selection selection);
 struct point screen_point_to_bitmap_point(struct point point, struct transform image_transform);
 struct rect screen_selection_to_bitmap_rect(struct selection selection, struct transform image_transform);
-void indexed_bitmap_to_rgba(indexed_pixel_t const* indexed_pixels, int n, uint32_t const* palette_colours, uint32_t* out);
+void indexed_bitmap_to_rgba(indexed_pixel_t const* indexed_pixels, int n, colour_t const* palette_colours, colour_t* out);
 void generate_sdl_bitmaps_for_indexed_bitmaps(
   indexed_pixel_t const* pixels,
   int pixels_n,
   SDL_Renderer* sdl_renderer,
-  uint32_t const* palette_colours,
+  colour_t const* palette_colours,
   struct indexed_bitmap const* indexed_bitmaps,
   int indexed_bitmaps_n,
   struct sdl_bitmap* copy_bitmaps
 );
 colour_t* create_grid_tile_bitmap(int size);
+struct sdl_bitmap create_grid_sdl_bitmap(SDL_Renderer* renderer, int tile_size, int scale);
+struct sdl_bitmap sdl_bitmap_from_raw_buffer(SDL_Renderer* renderer, void* buffer, struct dimensions dimensions);
+
 #endif

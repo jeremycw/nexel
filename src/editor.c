@@ -1,3 +1,7 @@
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "editor.h"
 #include "debugbreak.h"
 #include "util.h"
@@ -57,24 +61,19 @@ enum editor_commands editor_select_command(SDL_Event* e, struct din_editor_selec
 }
 
 struct dout_editor_cancel_paste* editor_cancel_paste(struct din_editor_cancel_paste* din) {
-  free(din->copies[0].pixels);
-  din->dout.copies_meta = din->copies_meta;
-  array_clear(din->dout.copies)
+  din->dout.editor_state = EDITOR_STATE_NONE;
   return &din->dout;
 }
 
 struct dout_editor_start_selection* editor_start_selection(struct din_editor_start_selection* din) {
   din->dout.state = EDITOR_STATE_SELECTING;
-  din->dout.selection.x = din->mouse_x;
-  din->dout.selection.y = din->mouse_y;
-  din->dout.selection.w = 0;
-  din->dout.selection.h = 0;
+  din->dout.selection.start = din->mouse;
+  din->dout.selection.end = din->mouse;
   return &din->dout;
 }
 
 struct dout_editor_resize_selection* editor_resize_selection(struct din_editor_resize_selection* din) {
-  din->dout.end_selection.x = din->mouse.x;
-  din->dout.end_selection.y = din->mouse.y;
+  din->dout.end_selection = din->mouse;
   return &din->dout;
 }
 
@@ -88,8 +87,13 @@ struct dout_editor_copy_selection* editor_copy_selection(struct din_editor_copy_
     pixel_count += bitmap_rects[i].w * bitmap_rects[i].h;
   }
 
-  // allocate space for all copied selections
+  // NOTE allocate space for all copied selections. This strategy breaks if it
+  // becomes possible to add more active copies at a later time. Could possibly
+  // be solved by reallocing if that functionality is ever needed.
   indexed_pixel_t* buffer = malloc(sizeof(indexed_pixel_t) * pixel_count);
+
+  array_init(din->dout.copies, sizeof(struct indexed_bitmap), din->selections_n);
+  array_init(din->dout.copy_bitmaps, sizeof(struct sdl_bitmap), din->selections_n);
 
   // XXX need to check for copying out of bounds
   indexed_pixel_t* copied_pixels = buffer;
@@ -216,6 +220,8 @@ struct dout_editor_transform_selection* editor_transform_selection(indexed_pixel
     pixels += w * h;
   }
 
+  array_init(din->dout.copy_bitmaps, sizeof(struct sdl_bitmap), din->copies_n);
+
   // generate sdl_bitmaps
   generate_sdl_bitmaps_for_indexed_bitmaps(
     buffer,
@@ -250,26 +256,7 @@ struct dout_editor_zoom* editor_zoom(zoom_fn_t zoom_fn, struct din_editor_zoom* 
   din->dout.image_transform = zoom_fn(din->window_size, din->image_transform);
 
   // resize grid
-  int size = din->tile_size * din->image_transform.scale;
-  int bpp = 32;
-  colour_t* grid_buffer = create_grid_tile_bitmap(size);
-  SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
-    grid_buffer,                 // buffer
-    size,                        // width
-    size,                        // height
-    bpp,                         // bpp
-    size * (bpp / BITS_IN_BYTE), // pitch
-    RMASK,                       // red mask
-    GMASK,                       // green mask
-    BMASK,                       // blue mask
-    AMASK                        // alpha mask
-  );
-
-  din->dout.grid_bitmap = (struct sdl_bitmap) {
-    .surface = surface,
-    .texture = SDL_CreateTextureFromSurface(din->sdl_renderer, surface)
-  };
-  din->dout.grid_buffer = grid_buffer;
+  din->dout.grid_bitmap = create_grid_sdl_bitmap(din->sdl_renderer, din->tile_size, din->image_transform.scale);
   
   return &din->dout;
 }
@@ -286,4 +273,28 @@ struct dout_editor_pick_image_colour* editor_pick_image_colour(struct din_editor
     din->dout.paint_colour = din->image_pixels[index];
   }
   return &din->dout;
+}
+
+void editor_save_image(struct din_editor_save_image* din) {
+  int w = din->image.width;
+  int h = din->image.height;
+  colour_t* bitmap_buffer = malloc(sizeof(colour_t) * w * h);
+  int pitch = w * (BITS_PER_PIXEL / BITS_IN_BYTE);
+  stbi_write_png(din->image_filename, w, h, 4, (uint8_t*)bitmap_buffer, pitch);
+  free(bitmap_buffer);
+}
+
+struct dout_editor_init* editor_init(struct din_editor_init* din) {
+  struct dout_editor_init* dout = &din->dout;
+  dout->default_palette.colours = (colour_t*)nes_palette_colours;
+  dout->default_palette.n = 64;
+  dout->default_palette.name = "NES";
+  dout->display_name = "Untitled*";
+  dout->grid_enabled = 1;
+  int buffer_bytes = sizeof(indexed_pixel_t) * DEFAULT_IMAGE_SIZE * DEFAULT_IMAGE_SIZE;
+  dout->image.pixels = calloc(buffer_bytes, 1);
+  dout->image_scale = 4;
+  dout->image.width = DEFAULT_IMAGE_SIZE;
+  dout->image.height = DEFAULT_IMAGE_SIZE;
+  return dout;
 }
