@@ -125,6 +125,8 @@ int main() {
       }
     } while (SDL_PollEvent(&e));
 
+    printf("Draw screen!\n");
+
     sdl_renderer_draw(
       data_r_sdl_renderer_draw(&data));
   }

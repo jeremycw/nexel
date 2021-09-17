@@ -2,6 +2,8 @@
 #include "bitmap.h"
 #include "varray.h"
 #include "image.h"
+#include "stb_image_write.h"
+#include "stb_image.h"
 
 varray_decl(pixel_t)
 varray_defn(pixel_t);

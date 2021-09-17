@@ -1,5 +1,15 @@
 #include "data.h"
 
+/**
+ * Snaps the given rect to pixel boundaries in screen space. This is useful in
+ * cases where the image in zoomed in and you want to display a selection and
+ * not have it visually subdivide a pixel.
+ *
+ * @param rect is the screen space rect to snap
+ * @param image_transform is the current view transformation applied to display the image
+ *
+ * @return the snapped rect
+ */
 struct rect snap_rect_to_pixel(struct rect rect, struct transform image_transform) {
   int offsetx = image_transform.translation.x % image_transform.scale;
   int offsety = image_transform.translation.y % image_transform.scale;
@@ -10,6 +20,14 @@ struct rect snap_rect_to_pixel(struct rect rect, struct transform image_transfor
   return rect;
 }
 
+/**
+ * Takes a selection, which is two points and converts it to a rect which is a
+ * point and width and height.
+ *
+ * @param selection is the selection to be converted
+ *
+ * @return the rect form of the selection
+ */
 struct rect selection_to_rect(struct selection selection) {
   int dx = selection.end.x - selection.start.x;
   int dy = selection.end.y - selection.start.y;
@@ -31,6 +49,15 @@ struct rect selection_to_rect(struct selection selection) {
   return rect;
 }
 
+/**
+ * Takes a point in screen coordinates and transforms it to a point that can be
+ * used to index a pixel on the bitmap.
+ *
+ * @param point is the screen coord
+ * @param image_transform is the view transform applied to display the image
+ *
+ * @return the point in bitmap coordinates
+ */
 struct point screen_point_to_bitmap_point(
   struct point point, struct transform image_transform
 ) {
@@ -40,6 +67,14 @@ struct point screen_point_to_bitmap_point(
   return translated;
 }
 
+/**
+ * Transforms a selection in screen coordinates to a rect in bitmap coordinates.
+ *
+ * @param selection is the selection to be transformed
+ * @param image_transform is the view transform applied to display the image
+ *
+ * @return the bitmap coordinate rect
+ */
 struct rect screen_selection_to_bitmap_rect(
   struct selection selection, struct transform image_transform
 ) {
@@ -63,6 +98,14 @@ struct rect screen_selection_to_bitmap_rect(
   return rect;
 }
 
+/**
+ * Transforms an array of palette indexes into an array of rgba colours.
+ *
+ * @param indexed_pixels is the buffer holding the indexes
+ * @param n is the count of the indexes in the buffer
+ * @param palette_colours is an array of colours indexed by the indexed_pixels
+ * @param out is the buffer to fill with the rgba colours
+ */
 void indexed_bitmap_to_rgba(
   indexed_pixel_t const* indexed_pixels,
   int n,
@@ -74,6 +117,15 @@ void indexed_bitmap_to_rgba(
   }
 }
 
+/**
+ * Creates an sdl_bitmap from an rgba bitmap buffer
+ *
+ * @param renderer is the SDL_Renderer* we are using to render our screen
+ * @param buffer is the rgba bitmap to convert to an sdl_bitmap
+ * @param dimensions is the width and height of the input bitmap
+ *
+ * @return the new sdl_bitmap representation
+ */
 struct sdl_bitmap sdl_bitmap_from_raw_buffer(
   SDL_Renderer* renderer, void* buffer, struct dimensions dimensions
 ) {
@@ -96,6 +148,19 @@ struct sdl_bitmap sdl_bitmap_from_raw_buffer(
   };
 }
 
+/**
+ * Transforms an array of indexed bitmaps into sdl bitmaps
+ *
+ * @param pixels is an array of palette indexes. It should contain the pixels
+ *   for all bitmaps we want to generate stored contiguously.
+ * @param pixels_n is the length of the pixels array
+ * @param sdl_renderer is the SDL_Renderer* used to draw the screen
+ * @param palette_colours is an array of rgba colours indexed by the pixels
+ * @param indexed_bitmaps is an array of indexed bitmaps backed by the pixels buffer
+ * @param indexed_bitmaps_n is the length of indexed_bitmaps
+ * @param copy_bitmaps is the output array for the sdl_bitmaps. It should have
+ *   capacity for indexed_bitmaps_n sdl_bitmaps
+ */
 void generate_sdl_bitmaps_for_indexed_bitmaps(
   indexed_pixel_t const* pixels,
   int pixels_n,
@@ -182,6 +247,15 @@ struct transform zoom_in(struct dimensions window, struct transform transform) {
   return transform;
 }
 
+/**
+ * Creates an rgba bitmap of a single tile of the grid overlay. This is necessary
+ * because we can't just scale this up at different zoom levels since we want the
+ * line with to remain the same at different zoom levels.
+ *
+ * @param size is the width and height of the grid tile to create
+ *
+ * @return the newly allocated bitmap of colours
+ */
 colour_t* create_grid_tile_bitmap(int size) {
   colour_t* grid_pixels = calloc(size * size, sizeof(colour_t));
   for (int i = 0, j = 0; i < size; i++, j += size) {
@@ -193,6 +267,15 @@ colour_t* create_grid_tile_bitmap(int size) {
   return grid_pixels;
 }
 
+/**
+ * Creates an sdl bitmap of the grid tile at the current zoom scale.
+ *
+ * @param renderer is the SDL_Renderer* used to draw the screen
+ * @param tile_size the width or height in bitmap pixels of one grid square
+ * @param scale is the scale of the image being overlaid with the grid
+ *
+ * @return the sdl bitmap of the grid tile
+ */
 struct sdl_bitmap create_grid_sdl_bitmap(SDL_Renderer* renderer, int tile_size, int scale) {
   int width = tile_size * scale;
   colour_t* grid_buffer = create_grid_tile_bitmap(width);

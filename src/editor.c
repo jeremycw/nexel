@@ -3,7 +3,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include "editor.h"
-#include "debugbreak.h"
 #include "util.h"
 
 enum editor_commands editor_select_command(SDL_Event* e, struct din_editor_select_command* din) {
@@ -93,7 +92,6 @@ struct dout_editor_copy_selection* editor_copy_selection(struct din_editor_copy_
   indexed_pixel_t* buffer = malloc(sizeof(indexed_pixel_t) * pixel_count);
 
   array_init(din->dout.copies, sizeof(struct indexed_bitmap), din->selections_n);
-  array_init(din->dout.copy_bitmaps, sizeof(struct sdl_bitmap), din->selections_n);
 
   indexed_pixel_t* copied_pixels = buffer;
   for (int i = 0; i < din->selections_n; i++) {
@@ -124,6 +122,8 @@ struct dout_editor_copy_selection* editor_copy_selection(struct din_editor_copy_
 
     copied_pixels += bitmap_rects[i].w * bitmap_rects[i].h;
   }
+
+  array_init(din->dout.copy_bitmaps, sizeof(struct sdl_bitmap), din->selections_n);
 
   generate_sdl_bitmaps_for_indexed_bitmaps(
     buffer,
@@ -173,7 +173,6 @@ struct dout_editor_apply_paste* editor_apply_paste(struct din_editor_apply_paste
 
   array_init(din->dout.pixel_changes, sizeof(struct pixel_change), n)
 
-  // XXX need to check for pasting out of bounds
   for (int i = 0; i < din->selections_n; i++) {
     pixel_loop(
       0,                       // source x
@@ -305,3 +304,32 @@ struct dout_editor_init* editor_init(struct din_editor_init* din) {
   dout->image.height = DEFAULT_IMAGE_SIZE;
   return dout;
 }
+
+// struct dout_editor_resize_window {
+// };
+// 
+// struct din_editor_resize_window {
+//   struct dout_editor_resize_window dout;
+//   
+// };
+// 
+// void data_w_editor_resize_window(struct data* data, struct dout_editor_resize_window* dout);
+// struct din_editor_resize_window* data_r_editor_resize_window(struct data* data);
+// 
+// void data_w_editor_resize_window(struct data* data, struct dout_editor_resize_window* dout) {
+//   // TODO
+// }
+// 
+// struct din_editor_resize_window* data_r_editor_resize_window(struct data* data) {
+//   struct din_editor_resize_window* din = &data->_io_pool.editor_resize_window;
+//   // TODO
+//   return din;
+// }
+// 
+// struct dout_editor_resize_window* editor_resize_window(struct din_editor_resize_window* din);
+// 
+// struct dout_editor_resize_window* editor_resize_window(struct din_editor_resize_window* din) {
+//   struct dout_editor_resize_window* dout = &din->dout;
+//   // TODO
+//   return dout;
+// }

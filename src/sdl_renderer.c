@@ -1,6 +1,5 @@
 #include <SDL2/SDL.h>
 #include "data.h"
-#include "debugbreak.h"
 #include "util.h"
 
 struct dout_sdl_renderer_init* sdl_renderer_init(struct din_sdl_renderer_init* din) {
@@ -91,6 +90,7 @@ void sdl_renderer_draw(struct din_sdl_renderer_draw* din) {
     }
   }
 
+  // Draw selections
   colour = din->selection_colour;
   SDL_SetRenderDrawColor(din->sdl_renderer, colour.r, colour.g, colour.b, colour.a);
   for (int i = 0; i < din->selections_n; i++) {
@@ -105,6 +105,21 @@ void sdl_renderer_draw(struct din_sdl_renderer_draw* din) {
     });
   }
 
+  // XXX draw copies
+
+  // Draw UI
+  for (int i = 0; i < din->ui_widgets_n; i++) {
+    colour_t colour = din->ui_draw_colours[i];
+    SDL_SetRenderDrawColor(din->sdl_renderer, colour.r, colour.g, colour.b, colour.a);
+    SDL_RenderFillRect(din->sdl_renderer, &(SDL_Rect) {
+      .x = din->ui_bounding_boxes[i].x,
+      .y = din->ui_bounding_boxes[i].y,
+      .w = din->ui_bounding_boxes[i].w,
+      .h = din->ui_bounding_boxes[i].h
+    });
+  }
+
+  // XXX Draw palette
+
   SDL_RenderPresent(din->sdl_renderer);
-  // Draw UI panes
 }

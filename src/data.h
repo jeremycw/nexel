@@ -228,18 +228,9 @@ enum ui_alignment {
   UI_ALIGN_BOTTOM_RIGHT
 };
 
-struct ui_text {
-  char* text;
-  enum ui_alignment alignment;
-};
-
 struct ui {
-  int widget_count;
-  uint32_t* enabled_components;
-  struct rect* bounding_boxes;
-  colour_t* draw_colours;
-  uint8_t* enabled_events;
-  struct ui_text* texts;
+  array_decl(struct rect, bounding_boxes);
+  array_decl(colour_t, draw_colours);
 };
 
 // sdl_renderer_draw
@@ -256,6 +247,12 @@ struct din_sdl_renderer_draw {
   colour_t selection_colour;
   int selections_n;
   struct selection const* selections;
+  int copy_bitmaps_n;
+  struct sdl_bitmap const* copy_bitmaps;
+
+  int ui_widgets_n;
+  struct rect const* ui_bounding_boxes;
+  colour_t const* ui_draw_colours;
 };
 
 // editor_copy_selection
@@ -517,10 +514,10 @@ struct data {
   struct editor editor;
   struct sdl_renderer sdl_renderer;
   struct sdl_state sdl_state;
+  struct ui ui;
   struct data_io_pool _io_pool;
 };
 
 void data_init(struct data* data);
-
 
 #endif

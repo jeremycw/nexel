@@ -1,6 +1,5 @@
 #include <string.h>
 #include "data.h"
-#include "debugbreak.h"
 
 void data_init(struct data* data) {
   memset(data, 0, sizeof(struct data));
@@ -9,6 +8,9 @@ void data_init(struct data* data) {
   array_init(data->editor.copies, sizeof(struct indexed_bitmap), 1);
   array_init(data->editor.palette_selector.palettes, sizeof(struct palette), 1);
   array_init(data->sdl_renderer.copy_bitmaps, sizeof(struct sdl_bitmap), 1)
+
+  array_init(data->ui.bounding_boxes, sizeof(struct rect), 2)
+  array_init(data->ui.draw_colours, sizeof(colour_t), 2)
 }
 
 void free_copy_data(struct data* data) {
@@ -239,6 +241,9 @@ struct din_sdl_renderer_draw* data_r_sdl_renderer_draw(struct data* data) {
   din->image_transform = data->editor.image_transform;
   din->grid_texture = data->sdl_renderer.grid.texture;
   din->tile_size = EDITOR_TILE_SIZE;
+  din->ui_draw_colours = data->ui.draw_colours;
+  din->ui_bounding_boxes = data->ui.bounding_boxes;
+  din->ui_widgets_n = array_len(data->ui.bounding_boxes);
   return din;
 }
 
