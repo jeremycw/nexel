@@ -216,23 +216,6 @@ struct sdl_renderer {
   SDL_Renderer* renderer;
 };
 
-enum ui_alignment {
-  UI_ALIGN_TOP_LEFT,
-  UI_ALIGN_TOP_CENTER,
-  UI_ALIGN_TOP_RIGHT,
-  UI_ALIGN_CENTER_LEFT,
-  UI_ALIGN_CENTER_CENTER,
-  UI_ALIGN_CENTER_RIGHT,
-  UI_ALIGN_BOTTOM_LEFT,
-  UI_ALIGN_BOTTOM_CENTER,
-  UI_ALIGN_BOTTOM_RIGHT
-};
-
-struct ui {
-  array_decl(struct rect, bounding_boxes);
-  array_decl(colour_t, draw_colours);
-};
-
 // sdl_renderer_draw
 struct din_sdl_renderer_draw* data_r_sdl_renderer_draw(struct data* data);
 
@@ -249,10 +232,7 @@ struct din_sdl_renderer_draw {
   struct selection const* selections;
   int copy_bitmaps_n;
   struct sdl_bitmap const* copy_bitmaps;
-
-  int ui_widgets_n;
-  struct rect const* ui_bounding_boxes;
-  colour_t const* ui_draw_colours;
+  struct dimensions window_size;
 };
 
 // editor_copy_selection
@@ -487,6 +467,19 @@ struct din_editor_init {
 void data_w_editor_init(struct data* data, struct dout_editor_init* dout);
 struct din_editor_init* data_r_editor_init(struct data* data);
 
+// editor_pan_image
+struct dout_editor_pan_image {
+  struct point image_translation;
+};
+
+struct din_editor_pan_image {
+  struct dout_editor_pan_image dout;
+  struct point image_translation;
+};
+
+void data_w_editor_pan_image(struct data* data, struct dout_editor_pan_image* dout);
+struct din_editor_pan_image* data_r_editor_pan_image(struct data* data);
+
 // 
 struct data_io_pool {
   union {
@@ -507,6 +500,7 @@ struct data_io_pool {
     struct din_editor_select_command editor_select_command;
     struct din_editor_save_image editor_save_image;
     struct din_editor_init editor_init;
+    struct din_editor_pan_image editor_pan_image;
   };
 };
 
@@ -514,7 +508,6 @@ struct data {
   struct editor editor;
   struct sdl_renderer sdl_renderer;
   struct sdl_state sdl_state;
-  struct ui ui;
   struct data_io_pool _io_pool;
 };
 

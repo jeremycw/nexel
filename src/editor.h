@@ -67,6 +67,8 @@ struct dout_editor_zoom* editor_zoom(zoom_fn_t zoom_fn, struct din_editor_zoom* 
 struct dout_editor_pick_image_colour* editor_pick_image_colour(struct din_editor_pick_image_colour* din);
 void editor_save_image(struct din_editor_save_image* din);
 struct dout_editor_init* editor_init(struct din_editor_init* din);
+struct dout_editor_pan_image* editor_pan_image(struct din_editor_pan_image* din, int x, int y);
+
 
 
 #endif

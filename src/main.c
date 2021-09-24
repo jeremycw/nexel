@@ -18,6 +18,10 @@ int main() {
     sdl_renderer_init(
       data_r_sdl_renderer_init(&data)));
 
+  data_w_sdl_get_state(&data,
+    sdl_get_state(
+      data_r_sdl_get_state(&data)));
+
   sdl_renderer_draw(
     data_r_sdl_renderer_draw(&data));
 
@@ -112,6 +116,9 @@ int main() {
               data_r_editor_paint(&data)));
           break;
         case EDITOR_CMD_PAN:
+          data_w_editor_pan_image(&data,
+            editor_pan_image(
+              data_r_editor_pan_image(&data), e.wheel.x, e.wheel.y));
           break;
         case EDITOR_CMD_IMAGE_PICK_COLOUR:
           data_w_editor_pick_image_colour(&data,
@@ -124,8 +131,6 @@ int main() {
            break;
       }
     } while (SDL_PollEvent(&e));
-
-    printf("Draw screen!\n");
 
     sdl_renderer_draw(
       data_r_sdl_renderer_draw(&data));

@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include "sdl_renderer.h"
 #include "data.h"
 #include "util.h"
 
@@ -108,16 +109,25 @@ void sdl_renderer_draw(struct din_sdl_renderer_draw* din) {
   // XXX draw copies
 
   // Draw UI
-  for (int i = 0; i < din->ui_widgets_n; i++) {
-    colour_t colour = din->ui_draw_colours[i];
-    SDL_SetRenderDrawColor(din->sdl_renderer, colour.r, colour.g, colour.b, colour.a);
-    SDL_RenderFillRect(din->sdl_renderer, &(SDL_Rect) {
-      .x = din->ui_bounding_boxes[i].x,
-      .y = din->ui_bounding_boxes[i].y,
-      .w = din->ui_bounding_boxes[i].w,
-      .h = din->ui_bounding_boxes[i].h
-    });
-  }
+
+  // draw right pane
+  SDL_Rect area = {
+    .x = din->window_size.w - COLOUR_SWATCH_SIZE_PX * COLOUR_PICKER_W,
+    .y = 0,
+    .w = COLOUR_SWATCH_SIZE_PX * COLOUR_PICKER_W,
+    .h = din->window_size.h
+  };
+  SDL_SetRenderDrawColor(din->sdl_renderer, 0x07, 0x36, 0x42, 0xFF);
+  SDL_RenderFillRect(din->sdl_renderer, &area);
+
+  // draw status line
+  area = (SDL_Rect){
+    .w = din->window_size.w,
+    .h = 16,
+    .x = 0,
+    .y = din->window_size.h - 16
+  };
+  SDL_RenderFillRect(din->sdl_renderer, &area);
 
   // XXX Draw palette
 

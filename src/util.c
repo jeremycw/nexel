@@ -285,4 +285,3 @@ struct sdl_bitmap create_grid_sdl_bitmap(SDL_Renderer* renderer, int tile_size, 
     (struct dimensions) { .w = width, .h = width }
   );
 }
-

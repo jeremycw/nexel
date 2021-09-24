@@ -305,31 +305,11 @@ struct dout_editor_init* editor_init(struct din_editor_init* din) {
   return dout;
 }
 
-// struct dout_editor_resize_window {
-// };
-// 
-// struct din_editor_resize_window {
-//   struct dout_editor_resize_window dout;
-//   
-// };
-// 
-// void data_w_editor_resize_window(struct data* data, struct dout_editor_resize_window* dout);
-// struct din_editor_resize_window* data_r_editor_resize_window(struct data* data);
-// 
-// void data_w_editor_resize_window(struct data* data, struct dout_editor_resize_window* dout) {
-//   // TODO
-// }
-// 
-// struct din_editor_resize_window* data_r_editor_resize_window(struct data* data) {
-//   struct din_editor_resize_window* din = &data->_io_pool.editor_resize_window;
-//   // TODO
-//   return din;
-// }
-// 
-// struct dout_editor_resize_window* editor_resize_window(struct din_editor_resize_window* din);
-// 
-// struct dout_editor_resize_window* editor_resize_window(struct din_editor_resize_window* din) {
-//   struct dout_editor_resize_window* dout = &din->dout;
-//   // TODO
-//   return dout;
-// }
+struct dout_editor_pan_image* editor_pan_image(struct din_editor_pan_image* din, int x, int y) {
+  struct dout_editor_pan_image* dout = &din->dout;
+  din->dout.image_translation = din->image_translation;
+  din->dout.image_translation.x -= x * 10;
+  din->dout.image_translation.y += y * 10;
+  return dout;
+}
+
